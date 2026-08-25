@@ -792,6 +792,100 @@ async def delete_investment(investment_id: str, user: dict = Depends(get_current
     return {"ok": True}
 
 
+# ---------------- Life Event Guides ----------------
+LIFE_EVENTS = {
+    "buy_home": {
+        "title": "Buying a home",
+        "categories": ["identity", "financial", "bank_statement", "tax", "employment", "property", "insurance"],
+    },
+    "new_baby": {
+        "title": "Welcoming a new baby",
+        "categories": ["identity", "medical", "insurance", "financial", "legal_estate"],
+    },
+    "retirement": {
+        "title": "Planning retirement",
+        "categories": ["investment", "insurance", "financial", "tax", "legal_estate", "medical"],
+    },
+    "marriage": {
+        "title": "Getting married",
+        "categories": ["identity", "legal_estate", "insurance", "financial", "property"],
+    },
+    "new_job": {
+        "title": "Starting a new job",
+        "categories": ["employment", "identity", "tax", "education", "financial"],
+    },
+    "bereavement": {
+        "title": "Loss of a loved one",
+        "categories": ["legal_estate", "insurance", "financial", "identity", "property"],
+    },
+    "moving_abroad": {
+        "title": "Moving abroad",
+        "categories": ["identity", "immigration", "financial", "tax", "medical", "education"],
+    },
+}
+
+
+class LifeEventBody(BaseModel):
+    event: str
+
+
+@router.get("/life-events")
+async def list_life_events(user: dict = Depends(get_current_user)):
+    return {"events": [{"key": k, "title": v["title"], "categories": v["categories"]} for k, v in LIFE_EVENTS.items()]}
+
+
+@router.post("/life-events/guide")
+async def life_event_guide(body: LifeEventBody, user: dict = Depends(get_current_user)):
+    ev = LIFE_EVENTS.get(body.event)
+    if not ev:
+        raise HTTPException(status_code=404, detail="Unknown life event")
+
+    system = (
+        "You are a life-admin concierge. Given a major life event, produce a clear, practical "
+        "checklist of the documents and steps the person needs to prepare. "
+        "Available document categories: " + ", ".join(DOC_CATEGORIES) + ". "
+        "Return ONLY JSON: {\"summary\": str, "
+        "\"checklist\": [{\"item\": str, \"category\": str, \"required\": bool, \"why\": str}], "
+        "\"tips\": [str]}. "
+        "Each checklist item's category MUST be one of the available categories. "
+        "Keep it specific and actionable (8-14 items)."
+    )
+    chat = ai.make_chat(f"life_{uuid.uuid4().hex}", system, "claude")
+    raw = await ai.complete(chat, f"LIFE EVENT: {ev['title']}\n\nReturn the JSON now.")
+    parsed = ai.parse_json(raw) or {"summary": raw[:400], "checklist": [], "tips": []}
+
+    # Recommended categories = union of curated + AI-suggested (valid only)
+    rec = list(ev["categories"])
+    for item in parsed.get("checklist", []):
+        c = item.get("category")
+        if c in DOC_CATEGORIES and c not in rec:
+            rec.append(c)
+
+    docs = await db.documents.find(
+        {"user_id": user["user_id"], "is_deleted": False, "category": {"$in": rec}},
+        {"_id": 0, "document_id": 1, "original_filename": 1, "category": 1},
+    ).to_list(1000)
+    by_cat = {}
+    for d in docs:
+        by_cat.setdefault(d["category"], []).append({"document_id": d["document_id"], "filename": d["original_filename"]})
+
+    matched = [{"category": c, "documents": by_cat.get(c, [])} for c in rec if by_cat.get(c)]
+    missing = [c for c in rec if not by_cat.get(c)]
+    have_ids = [d["document_id"] for d in docs]
+
+    return {
+        "event": body.event,
+        "title": ev["title"],
+        "summary": parsed.get("summary", ""),
+        "checklist": parsed.get("checklist", []),
+        "tips": parsed.get("tips", []),
+        "recommended_categories": rec,
+        "matched_documents": matched,
+        "missing_categories": missing,
+        "have_document_ids": have_ids,
+    }
+
+
 # ---------------- Dashboard ----------------
 @router.get("/dashboard/stats")
 async def dashboard_stats(user: dict = Depends(get_current_user)):

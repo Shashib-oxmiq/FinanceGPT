@@ -41,6 +41,8 @@ Chrome extension + native mobile app (Expo)**.
 
 - 2026-08-25: Chat uploads land in Vault; AI auto-classify + metadata on upload; document-grounded chat with source chips + inline preview (privacy-gated to document-intent queries); Money Insights; Investment Tracker; Profile auto-fill from documents; Loan Prep (sectioned checklists tailored by bank/loan/employment/purchase) + secure password-protected shares (8-digit password, 15-day expiry) with public /share/:token page; categories expanded (20 incl. travel, purchase). Verified iterations 8 & 9.
 
+- 2026-06 (fork): P0 audio fix — shared TTS singleton (frontend/src/lib/audio.js useTts): only one voice plays at a time, toggle Stop, and playback stops on route change (fixes orphaned audio). Removed native <audio> widgets from Insights/Insurance. Life Event Guides (7 milestones) — GET /api/life-events + POST /api/life-events/guide generate a tailored AI checklist, cross-check the Vault, and build a document pack (.zip). Investments now feed Money Insights via a "Net worth from investments" panel. Hardened Chat streaming reducers (patch by message_id, no tail-index crash). Verified iteration 12 (backend 22/22) + main-agent self-test.
+
 ## Test Status
 - Web frontend: 100% pass (iterations 3 & 4). Backend endpoints curl-verified incl. insights.
 - Native app: code-complete, must be run/built on user's machine via Expo/EAS (cannot run a simulator in this cloud container).
@@ -51,6 +53,6 @@ Chrome extension + native mobile app (Expo)**.
 - P2: Emergent Google login on native app (currently email/password on mobile).
 
 ## Next Tasks
-- Add guided life-event checklists that generate a tailored document bundle.
-- Add an investment/ROI tracker feeding Money Insights.
-- Wire real email invites for next-of-kin access.
+- Wire real email invites for next-of-kin access (Resend) — BLOCKED: needs user's Resend API key. Integration playbook was gathered previously; implement POST route to email a secure legacy-pack invite.
+- Complete the Chrome extension: autofill website forms from the Vault (currently boilerplate).
+- Native app parity: mirror Voice singleton, Life Events, Insights net-worth into /app/mobile (user runs via `npx expo start`).

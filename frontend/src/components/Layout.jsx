@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import {
   House, ChatCircleText, IdentificationCard, ShieldCheck, Vault as VaultIcon,
-  FileText, Package, HandHeart, SignOut, Sun, MoonStars, List, X, PuzzlePiece, ChartLineUp, TrendUp, Bank,
+  FileText, Package, HandHeart, SignOut, Sun, MoonStars, List, X, PuzzlePiece, ChartLineUp, TrendUp, Bank, Confetti,
 } from "@phosphor-icons/react";
 
 const NAV = [
@@ -12,6 +12,7 @@ const NAV = [
   { to: "/insights", label: "Money Insights", icon: ChartLineUp },
   { to: "/investments", label: "Investments", icon: TrendUp },
   { to: "/loans", label: "Loan Prep", icon: Bank },
+  { to: "/life-events", label: "Life Events", icon: Confetti },
   { to: "/profile", label: "Profile", icon: IdentificationCard },
   { to: "/insurance", label: "Insurance", icon: ShieldCheck },
   { to: "/vault", label: "Document Vault", icon: VaultIcon },

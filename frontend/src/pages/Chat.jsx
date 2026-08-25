@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { api, API } from "../lib/api";
+import { useTts } from "../lib/audio";
 import {
   PaperPlaneRight, Plus, Trash, Sparkle, User, Robot, Paperclip, X, ListBullets,
-  File as FileIcon, Eye, DownloadSimple,
+  File as FileIcon, Eye, DownloadSimple, SpeakerHigh, Stop,
 } from "@phosphor-icons/react";
 import Modal from "../components/Modal";
 
 export default function Chat() {
+  const { activeId: audioId, loadingId: audioLoading, speak } = useTts();
   const [conversations, setConversations] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -51,6 +53,11 @@ export default function Chat() {
     a.href = preview.url;
     a.download = preview.filename || "document";
     a.click();
+  };
+
+  const speakMessage = (id, text) => {
+    const clean = (text || "").replace(/\[doc:[^\]]+\]/g, "");
+    speak(id, clean);
   };
 
   const loadConvos = async () => {
@@ -109,12 +116,16 @@ export default function Chat() {
       setActiveId(convId);
     }
     const sentAttachments = attachments;
+    const assistantId = `a-${Date.now()}`;
     const userMsg = { role: "user", content: input, attachments: sentAttachments, message_id: `u-${Date.now()}` };
     const text = input;
     setInput("");
     setAttachments([]);
-    setMessages((m) => [...m, userMsg, { role: "assistant", content: "", message_id: `a-${Date.now()}` }]);
+    setMessages((m) => [...m, userMsg, { role: "assistant", content: "", message_id: assistantId }]);
     setStreaming(true);
+
+    const patchAssistant = (patch) =>
+      setMessages((m) => m.map((msg) => (msg.message_id === assistantId ? { ...msg, ...patch(msg) } : msg)));
 
     try {
       const token = localStorage.getItem("vault_token");
@@ -130,11 +141,7 @@ export default function Chat() {
       });
       if (!res.ok) {
         toast.error(`Request failed (${res.status})`);
-        setMessages((m) => {
-          const copy = [...m];
-          copy[copy.length - 1] = { ...copy[copy.length - 1], content: "Sorry — I couldn't generate a reply. Please try again." };
-          return copy;
-        });
+        patchAssistant(() => ({ content: "Sorry — I couldn't generate a reply. Please try again." }));
         return;
       }
       const reader = res.body.getReader();
@@ -153,17 +160,9 @@ export default function Chat() {
           try {
             const evt = JSON.parse(line);
             if (evt.delta) {
-              setMessages((m) => {
-                const copy = [...m];
-                copy[copy.length - 1] = { ...copy[copy.length - 1], content: copy[copy.length - 1].content + evt.delta };
-                return copy;
-              });
+              patchAssistant((msg) => ({ content: msg.content + evt.delta }));
             } else if (evt.sources) {
-              setMessages((m) => {
-                const copy = [...m];
-                copy[copy.length - 1] = { ...copy[copy.length - 1], sources: evt.sources };
-                return copy;
-              });
+              patchAssistant(() => ({ sources: evt.sources }));
             } else if (evt.error) {
               errored = true;
               toast.error("AI error: " + evt.error);
@@ -172,23 +171,11 @@ export default function Chat() {
         }
       }
       // Replace an empty assistant bubble (e.g. on stream error) with an inline notice.
-      setMessages((m) => {
-        const copy = [...m];
-        const last = copy[copy.length - 1];
-        if (last && last.role !== "user" && !last.content) {
-          copy[copy.length - 1] = { ...last, content: errored ? "Sorry — I couldn't process that. Please try again." : "" };
-        }
-        return copy;
-      });
+      if (errored) patchAssistant((msg) => ({ content: msg.content || "Sorry — I couldn't process that. Please try again." }));
       loadConvos();
     } catch (e) {
       toast.error("Streaming failed");
-      setMessages((m) => {
-        const copy = [...m];
-        const last = copy[copy.length - 1];
-        if (last && last.role !== "user" && !last.content) copy[copy.length - 1] = { ...last, content: "Sorry — the connection dropped. Please try again." };
-        return copy;
-      });
+      patchAssistant((msg) => ({ content: msg.content || "Sorry — the connection dropped. Please try again." }));
     } finally {
       setStreaming(false);
     }
@@ -292,6 +279,17 @@ export default function Chat() {
                     </div>
                   </div>
                 )}
+                {m.role !== "user" && m.content && !streaming && (() => {
+                  const playing = audioId === m.message_id;
+                  const loading = audioLoading === m.message_id;
+                  return (
+                    <button onClick={() => speakMessage(m.message_id, m.content)} data-testid="listen-message"
+                      className={`mt-2 flex items-center gap-1 text-[11px] transition-colors ${playing ? "text-primary" : "text-muted-foreground hover:text-primary"}`}>
+                      {playing ? <Stop size={13} weight="fill" /> : <SpeakerHigh size={13} weight="duotone" className={loading ? "animate-pulse" : ""} />}
+                      {loading ? "Preparing…" : playing ? "Stop" : "Listen"}
+                    </button>
+                  );
+                })()}
               </div>
             </div>
           ))}

@@ -18,6 +18,7 @@ import Legacy from "./pages/Legacy";
 import Insights from "./pages/Insights";
 import Investments from "./pages/Investments";
 import LoanPrep from "./pages/LoanPrep";
+import LifeEvents from "./pages/LifeEvents";
 import SharedView from "./pages/SharedView";
 
 function Protected({ children }) {
@@ -48,6 +49,7 @@ function AppRouter() {
       <Route path="/insights" element={<Protected><Insights /></Protected>} />
       <Route path="/investments" element={<Protected><Investments /></Protected>} />
       <Route path="/loans" element={<Protected><LoanPrep /></Protected>} />
+      <Route path="/life-events" element={<Protected><LifeEvents /></Protected>} />
       <Route path="/vault" element={<Protected><Vault /></Protected>} />
       <Route path="/forms" element={<Protected><FormFiller /></Protected>} />
       <Route path="/bundler" element={<Protected><Bundler /></Protected>} />

@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { api } from "../lib/api";
+import { useTts } from "../lib/audio";
 import { Page, PageHeader } from "../components/Page";
 import { catLabel } from "../lib/categories";
-import { ChartLineUp, Sparkle, WarningCircle, ArrowsClockwise, Lightbulb, Receipt } from "@phosphor-icons/react";
+import { ChartLineUp, Sparkle, WarningCircle, ArrowsClockwise, Lightbulb, Receipt, SpeakerHigh, Stop, TrendUp } from "@phosphor-icons/react";
 
 const money = (v, cur) => {
   if (v == null || isNaN(Number(v))) return "—";
@@ -17,6 +18,18 @@ export default function Insights() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
   const [history, setHistory] = useState([]);
+  const [invest, setInvest] = useState(null);
+  const { activeId: audioId, loadingId: audioLoading, speak } = useTts();
+
+  const listen = () => {
+    if (!result) return;
+    const text = [
+      "Here is your money insights summary.", result.summary,
+      "Recurring subscriptions: " + (result.recurring || []).map((s) => s.merchant).join(", "),
+      "Advice: " + (result.advice || []).join(". "),
+    ].filter(Boolean).join(". ");
+    speak("insights", text);
+  };
 
   const loadHistory = () => api.get("/insights").then(({ data }) => setHistory(data));
 
@@ -27,6 +40,7 @@ export default function Insights() {
       setDocs(sorted);
       if (sorted.length) setSelected(sorted[0].document_id);
     });
+    api.get("/investments/summary").then(({ data }) => setInvest(data)).catch(() => {});
     loadHistory();
   }, []);
 
@@ -57,6 +71,22 @@ export default function Insights() {
         subtitle="Upload a bank or credit-card statement and let Everkin review your spending, spot subscriptions and give you clear expense & credit advice."
       />
 
+      {invest && invest.count > 0 && (
+        <div className="border border-border rounded-lg p-6 bg-card mb-6 animate-fade-up" data-testid="networth-panel">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-heading text-lg font-bold flex items-center gap-2"><TrendUp size={18} weight="duotone" className="text-primary" /> Net worth from investments</h3>
+            <a href="/investments" className="text-xs font-semibold text-primary hover:underline underline-offset-2" data-testid="networth-manage">Manage →</a>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Stat label="Net Worth" value={money(invest.net_worth)} accent />
+            <Stat label="Invested" value={money(invest.total_invested)} />
+            <Stat label="Current Value" value={money(invest.total_current)} />
+            <Stat label="Total ROI" value={`${invest.roi_pct ?? 0}%`} />
+          </div>
+          <p className="text-xs text-muted-foreground mt-3">Includes {invest.count} logged investment{invest.count === 1 ? "" : "s"}. Analyze a statement below to add spending & savings context.</p>
+        </div>
+      )}
+
       <div className="border border-border rounded-lg p-6 bg-card mb-6">
         <label className="text-[11px] tracking-[0.1em] uppercase text-muted-foreground">Statement to review</label>
         <div className="flex flex-col sm:flex-row gap-2 mt-2">
@@ -76,6 +106,12 @@ export default function Insights() {
 
       {r && (
         <div className="space-y-4 animate-fade-up" data-testid="insights-result">
+          <div className="flex justify-end">
+            <button onClick={listen} data-testid="listen-insights" className={`flex items-center gap-2 border border-border px-3 py-2 rounded-md text-sm transition-colors ${audioId === "insights" ? "text-primary border-primary" : "hover:bg-secondary"}`}>
+              {audioId === "insights" ? <Stop size={16} weight="fill" /> : <SpeakerHigh size={16} weight="duotone" className={audioLoading === "insights" ? "animate-pulse" : ""} />}
+              {audioLoading === "insights" ? "Preparing…" : audioId === "insights" ? "Stop" : "Listen"}
+            </button>
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Stat label="Total Spend" value={money(r.total_spend, cur)} />
             <Stat label="Income" value={money(r.total_income, cur)} accent />

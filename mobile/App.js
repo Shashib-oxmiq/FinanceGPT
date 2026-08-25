@@ -16,6 +16,7 @@ import InsuranceScreen from "./src/screens/InsuranceScreen";
 import VaultScreen from "./src/screens/VaultScreen";
 import LegacyScreen from "./src/screens/LegacyScreen";
 import InsightsScreen from "./src/screens/InsightsScreen";
+import GuideScreen from "./src/screens/GuideScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -25,6 +26,7 @@ const ICONS = {
   Home: "grid",
   Money: "trending-up",
   Insurance: "shield-checkmark",
+  Guide: "document-text",
   Vault: "folder",
   Legacy: "heart",
 };
@@ -48,6 +50,7 @@ function Tabs() {
       <Tab.Screen name="Home" component={DashboardScreen} />
       <Tab.Screen name="Money" component={InsightsScreen} />
       <Tab.Screen name="Insurance" component={InsuranceScreen} />
+      <Tab.Screen name="Guide" component={GuideScreen} />
       <Tab.Screen name="Vault" component={VaultScreen} />
       <Tab.Screen name="Legacy" component={LegacyScreen} />
     </Tab.Navigator>

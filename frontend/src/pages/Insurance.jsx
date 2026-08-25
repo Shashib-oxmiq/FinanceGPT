@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { api, API } from "../lib/api";
+import { api } from "../lib/api";
+import { useTts } from "../lib/audio";
 import { Page, PageHeader } from "../components/Page";
-import { Plus, Trash, ShieldCheck, Sparkle, X, WarningCircle, CheckCircle, SpeakerHigh, FileMagnifyingGlass } from "@phosphor-icons/react";
+import { Plus, Trash, ShieldCheck, Sparkle, X, WarningCircle, CheckCircle, SpeakerHigh, Stop, FileMagnifyingGlass } from "@phosphor-icons/react";
 import Modal from "../components/Modal";
-
-const AUDIO_BASE = API.replace(/\/api$/, "");
 
 const EMPTY = {
   policy_type: "life_term", provider: "", policy_number: "", sum_assured: "", premium_amount: "",
@@ -27,11 +26,10 @@ export default function Insurance() {
   const [insDocs, setInsDocs] = useState([]);
   const [analysis, setAnalysis] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
-  const [audioUrl, setAudioUrl] = useState(null);
-  const [speaking, setSpeaking] = useState(false);
+  const { activeId: audioId, loadingId: audioLoading, speak } = useTts();
 
   const analyzePolicy = async () => {
-    setAnalyzing(true); setAnalysis(null); setAudioUrl(null);
+    setAnalyzing(true); setAnalysis(null);
     try {
       const { data } = await api.post("/insurance/analyze", { insurance_type: guideType, document_id: guideDoc || null });
       setAnalysis(data);
@@ -39,9 +37,8 @@ export default function Insurance() {
     finally { setAnalyzing(false); }
   };
 
-  const speak = async () => {
+  const speakGuide = () => {
     if (!analysis) return;
-    setSpeaking(true);
     const parts = [
       `Here is your ${analysis.policy_type || guideType} policy guide.`,
       analysis.summary,
@@ -50,11 +47,7 @@ export default function Insurance() {
       "During an incident, do: " + (analysis.dos || []).join(". "),
       "Do not: " + (analysis.donts || []).join(". "),
     ];
-    try {
-      const { data } = await api.post("/tts", { text: parts.filter(Boolean).join(". "), voice: "sage" });
-      setAudioUrl(`${AUDIO_BASE}${data.url}`);
-    } catch { toast.error("Voice generation failed"); }
-    finally { setSpeaking(false); }
+    speak("policy", parts.filter(Boolean).join(". "), { voice: "sage" });
   };
 
   const load = () => api.get("/insurance").then(({ data }) => setPolicies(data));
@@ -144,11 +137,11 @@ export default function Insurance() {
           <div className="mt-6 animate-fade-up" data-testid="analysis-result">
             <div className="flex items-center justify-between mb-3">
               <p className="text-sm text-muted-foreground flex-1">{analysis.summary}</p>
-              <button onClick={speak} disabled={speaking} data-testid="listen-policy" className="flex items-center gap-2 border border-border px-3 py-2 rounded-md text-sm hover:bg-secondary transition-colors disabled:opacity-60 shrink-0 ml-3">
-                <SpeakerHigh size={16} weight="duotone" className={speaking ? "animate-pulse" : ""} /> {speaking ? "Preparing…" : "Listen"}
+              <button onClick={speakGuide} data-testid="listen-policy" className={`flex items-center gap-2 border border-border px-3 py-2 rounded-md text-sm transition-colors shrink-0 ml-3 ${audioId === "policy" ? "text-primary border-primary" : "hover:bg-secondary"}`}>
+                {audioId === "policy" ? <Stop size={16} weight="fill" /> : <SpeakerHigh size={16} weight="duotone" className={audioLoading === "policy" ? "animate-pulse" : ""} />}
+                {audioLoading === "policy" ? "Preparing…" : audioId === "policy" ? "Stop" : "Listen"}
               </button>
             </div>
-            {audioUrl && <audio src={audioUrl} controls autoPlay data-testid="policy-audio" className="w-full mb-4" />}
             <div className="grid md:grid-cols-2 gap-4">
               <GuideBox title="Covered (with conditions)" color="text-accent" items={(analysis.covered || []).map((c) => `${c.item}${c.conditions ? " — " + c.conditions : ""}`)} />
               <GuideBox title="Not covered" color="text-destructive" items={analysis.not_covered} />

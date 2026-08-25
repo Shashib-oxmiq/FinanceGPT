@@ -1,0 +1,36 @@
+{
+  "summary": "Iteration 11 e2e validation of 'Voice Everywhere' on the WEB app (Chat Listen + Money Insights Listen) plus regression. BACKEND: /app/backend/tests/test_iteration11.py -> 8/8 PASSED (44s). POST /api/tts requires auth (401/403 unauth), 400 on blank/markdown-only text, 200 with {url:/api/tts/<key>.mp3} for chat-reply-sized text, content-hash cached (same text -> same url), markdown/links stripped OK; GET of the url returns 200 audio/mpeg >1KB, unknown key -> 404. Money Insights flow: uploaded TEST_it11_statement.csv -> POST /api/insights/statement 200 with result{summary,recurring,advice,...}, no _id leakage, and the exact Listen payload the UI builds synthesizes to a playable mp3 (>5KB). Chat regression: POST /api/chat/conversations/{id}/message streams a non-empty reply, persisted assistant message re-synthesizes via /api/tts 200 audio/mpeg, no _id in message rows. GET /api/insights history clean of _id. FRONTEND (Playwright, 1920x1080, demo@example.com/demo123): (1) CHAT LISTEN — new chat, sent 'Give me one quick budgeting tip', reply streamed, [data-testid=listen-message] appeared after streaming; click -> POST /api/tts 200 + GET /api/tts/<key>.mp3 200; window.Audio instrumentation confirmed play() called, 'playing' event fired, no media error, zero app JS/page errors. (2) INSIGHTS LISTEN — /insights, stmt.csv selected, Analyze -> [data-testid=insights-result] with stats (Total spend USD 2,300, Income USD 5,000), click [data-testid=listen-insights] -> POST /api/tts 200 and <audio data-testid=insights-audio> rendered with absolute src https://<host>/api/tts/<key>.mp3, autoplaying (paused=false, readyState=4, duration 31.8s, currentTime 7.8s, error=null). (3) REGRESSION — document-grounded chat 'List the expenses in my bank statement' -> [data-testid=message-sources] chip 'stmt.csv'; nav sweep /insights /investments /loans /vault /legacy /insurance /profile /forms /bundle /dashboard all render without crash; Insurance Policy Guide (Health, no document) analyzed and [data-testid=listen-policy] -> policy-audio playing (t=5.9s, readyState 4, no error). CLEANUP: 2 test conversations + 4 messages, 2 test insight rows, 1 policy_analyses row deleted; uploaded TEST_it11_statement.csv deleted via API (soft delete is_deleted=true). No blocking issues found.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/tts/{key}.mp3", "issue": "Still unauthenticated (carried over from iteration 10): anyone with the 24-char key can stream audio that narrates the user's financial/policy summary. Consider signing the key per-session or requiring the session cookie."},
+      {"endpoint": "POST /api/tts", "issue": "In-process dict cache means audio is lost on backend reload/restart and is not shared across workers -> GET can 404 shortly after a successful POST (client shows no retry/regenerate path)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Chat.jsx listen-message", "issue": "No loading/disabled state while TTS generates (Insights uses 'Preparing…'); repeated clicks can create multiple overlapping Audio() objects with no way to stop playback (no pause/stop control since there is no <audio> element).", "selector": "[data-testid=listen-message]", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Money Insights", "issues": ["Native browser <audio controls> widget (white/light) sits inside the dark theme and looks visually out of place vs the rest of the UI — same as the Insurance page player."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_iteration11.py", "/app/test_reports/pytest/it11.xml", "/app/test_reports/it11_cleanup.py"],
+  "action_items": [
+    "Optional: add busy/disabled state to the chat Listen button and prevent overlapping playback.",
+    "Optional hardening: protect GET /api/tts/{key}.mp3 or scope keys per user session; handle 404 'Audio expired' by regenerating client-side."
+  ],
+  "critical_code_review_comments": [
+    "routes_voice.py _CACHE is a module-level in-memory dict — not durable across restarts and not multi-worker safe; a POST-then-GET race after reload yields a 404 with no client fallback.",
+    "GET /api/tts/{key}.mp3 has no auth dependency while the synthesized content is user-private."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration11.py", "/app/test_reports/it11_cleanup.py"],
+  "success_rate": {"backend": "100% (8/8)", "frontend": "100% of tested flows (chat listen, insights listen, doc-grounded chat, nav sweep, policy guide listen)"},
+  "seed_data_creation": "TEST_it11_statement.csv (uploaded then deleted), 2 test chat conversations (deleted), 2 insight rows + 1 policy_analyses row (deleted).",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "demo@example.com / demo123",
+  "context_for_next_testing_agent": "Voice Everywhere on web is verified end-to-end. Chat Listen has no <audio> element — instrument window.Audio in an init script to assert playback. Insights Listen renders <audio data-testid=insights-audio> and autoplays in headless Chrome. /api/tts cache is in-memory: after a backend reload old mp3 URLs 404. Note: preview-tool instrumentation injects a <span> inside <option> in Insights, producing a harmless React hydration console warning (not app code). Mobile /app/mobile GuideScreen remains untestable here.",
+  "rca_of_the_issue": "N/A — no defects reproduced; only hardening/UX observations."
+}
