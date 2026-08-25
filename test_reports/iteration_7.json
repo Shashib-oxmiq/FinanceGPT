@@ -1,0 +1,52 @@
+{
+  "summary": "Iteration 7 full-stack test. Backend: 12/13 pytest tests passed (1 skipped - no /api/categories endpoint) covering chat->vault, profile/from-documents, loans/checklist, secure share lifecycle (create/list/access/file/zip/revoke), 403 wrong-pw, 404 unknown token+revoked, 410 expired (verified via direct DB-inserted expired share), 400 empty share, and the delete-404 fixes for /documents/{unknown} + /investments/{unknown}. Frontend: login + all 10 nav routes load clean; TEXT PREVIEW FIX verified (source chip -> preview-text <pre> renders .txt content, Download present); chat upload appears in Vault; profile auto-fill works (extracted full_name/DOB/nationality/passport no+expiry/visa from a passport .txt, non-clobbering, friendly 404 toast when no docs); Loan Prep builds a 32-item checklist with have/missing + pre-selected vault docs and creates a share with 8-digit password and 15-day expiry; PUBLIC /share/:token page in a fresh no-login context rejects wrong password ('Incorrect password' toast, form stays), unlocks with the correct password, lists docs, shows Download all (.zip) and renders text preview; Vault category select has all 20 categories incl. Travel + Big Purchase; regression: multi-file upload + AI auto-classify, insurance modal, money insights, vault delete all pass. One HIGH functional bug found: unrelated plain-chat questions still get vault documents attached as sources.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/chat/conversations/{id}/message (select_relevant_docs in routes.py:219)", "issue": "False document grounding. Token matching uses naive substring match of every >=3-char word incl. stopwords ('the', 'about', 'one'), so unrelated questions pull private docs into context. Verified: 'Tell me a fun fact about the ocean.' -> bank statement attached and the reply volunteered the user's salary/rent/SIP data; 'what is compound interest?' also produced a sources chip in the UI. Regression vs the 'plain chat shows NO sources' requirement and a privacy concern. Fix: drop stopwords, match whole words (regex \\b) and/or require score >= 2 or an explicit doc-intent keyword.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "POST /api/loans/checklist", "issue": "Matching is too loose: `(cat and d.category == cat) or any(token in hay)` matches EVERY doc in a category, so a single identity .txt (it7_passport.txt) was marked 'You have this' for PAN Card, Aadhaar Card, Passport-size Photographs and 'Chain of Property Documents'. Produces false 'have' statuses. Suggest requiring name-token overlap in filename/metadata (not category alone) or labelling category-only hits as 'possible match'."},
+      {"endpoint": "POST /api/shares", "issue": "expiry_days <= 0 silently falls back to 15 days instead of a 422/400 validation error (pydantic Field(gt=0) would be clearer)."},
+      {"endpoint": "POST /api/shares/{token}/access", "issue": "No rate limiting / attempt lockout on the public unlock endpoint; an 8-digit numeric password (10^8 space) is brute-forceable. Share password is also stored in plaintext in mongo and echoed by GET /api/shares. Consider throttling + hashing."},
+      {"endpoint": "GET /api/categories", "issue": "Endpoint does not exist (404); category list is duplicated between backend deps.DOC_CATEGORIES and frontend lib/categories.js - drift risk."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Insights (select options)", "issue": "React dev console warning: 'In HTML, <span> cannot be a child of <option> ... will cause a hydration error' on /insights. Cosmetic/dev-only but should be cleaned (option children must be plain text).", "selector": "[data-testid=\"statement-select\"] option", "priority": "LOW"}
+    ],
+    "integration_issues": [
+      {"flow": "Plain chat (no document intent)", "issue": "message-sources chip rendered for a generic finance question because the backend attached an unrelated vault doc (see backend HIGH issue). Frontend wiring is correct; fix is server-side.", "affected_selectors": ["[data-testid=\"message-sources\"]"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration7.py",
+    "/app/test_reports/pytest/it7.xml",
+    "/app/test_reports/it7_expiry_check.py",
+    "/app/test_reports/it7_profile_diag.py",
+    "/app/test_reports/it7_chat_sources_diag.py",
+    "/app/test_reports/it7_cleanup.py"
+  ],
+  "action_items": [
+    "HIGH: Tighten select_relevant_docs (stopword removal, whole-word match, min score) so plain chat does not attach unrelated vault documents / leak financial data into generic answers.",
+    "MEDIUM: Tighten loan checklist matching so category-only hits are not reported as 'You have this' (false positives observed for PAN card / photographs / property docs).",
+    "LOW: Validate expiry_days > 0 on POST /api/shares; add throttling on POST /api/shares/{token}/access; consider hashing the share password.",
+    "LOW: Remove the <span> inside <option> on the Insights statement select (React hydration warning).",
+    "OPTIONAL: expose category list from backend (single source of truth) instead of duplicating in lib/categories.js."
+  ],
+  "critical_code_review_comments": [
+    "routes.py is 796 lines (>700) - split chat/documents/insights/investments into modules.",
+    "select_relevant_docs uses substring token matching over a JSON dump of metadata; this is both imprecise and a privacy risk - move to word-boundary matching with a stopword list.",
+    "Loan checklist match rule `(cat and d.category == cat) or any(token in hay)` OR-combines a very broad predicate; needs scoring.",
+    "Share password is plaintext in mongo and returned in list responses; public access endpoint lacks brute-force protection.",
+    "Duplicate text-preview logic in Chat.jsx and SharedView.jsx (~15 lines) - extract a shared preview component/hook."
+  ],
+  "success_rate": {"backend": "92% (12/13 passed, 1 skipped)", "frontend": "95% (all iteration-7 flows pass; 1 grounded-chat regression surfaced from backend)"},
+  "seed_data_creation": "Created transient test docs (it7_passport.txt, it7_stmt.csv, it7_warranty.txt), shares, conversations and insights under demo@example.com. ALL removed via /app/test_reports/it7_cleanup.py (documents/shares/chat_files/conversations/messages/insights deleted, demo profile reset to {}).",
+  "should_call_test_agent_after_fix": true,
+  "should_main_agent_self_test": false,
+  "test_credentials": "demo@example.com / demo123 (login verified, no lockout triggered)",
+  "context_for_next_testing_agent": "Backend regression suite: /app/backend/tests/test_iteration7.py (run with -n0; the module-scoped chat_doc fixture breaks under xdist loadscope). Expired-share 410 can only be tested by inserting a share with a past expires_at (see it7_expiry_check.py) because the API clamps expiry_days<=0 to 15 days. Verified working this round: text/CSV source preview (preview-text), chat->vault, profile auto-fill (non-clobbering + 404 toast), loan checklist, secure share create + public /share/:token unlock/wrong-pw/zip, Travel + Big Purchase categories, delete 404s, insights, vault multi-upload/delete, insurance modal. Re-verify plain-chat-no-sources after the select_relevant_docs fix and re-check loan checklist 'have' accuracy with a mixed doc set.",
+  "rca_of_the_issue": "Root cause of false chat grounding: routes.py select_relevant_docs tokenizes the query with r'[a-z0-9]{3,}' (keeping stopwords like 'the', 'about', 'one') and scores docs by plain substring containment in filename+category+json.dumps(metadata). Common stopwords appear inside metadata text, so score>0 for arbitrary questions and up to 3 documents get uploaded into the LLM context. Reproduction: new conversation -> ask 'Tell me a fun fact about the ocean.' with any bank statement in the vault -> reply cites the user's transactions and the UI renders message-sources."
+}

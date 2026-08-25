@@ -1,0 +1,27 @@
+{
+  "summary": "Iteration 9 e2e validation of (a) improved sectioned loan checklist, (b) reduced false 'You have this', (c) reliable chat source attribution, (d) privacy, (e) share regression. Backend pytest /app/backend/tests/test_iteration9.py: 13/14 passed. LOAN PREP VERIFIED end-to-end: /loans exposes loan-bank, loan-type, loan-employment (Salaried / Self-Employed Professional / Self-Employed Non-Professional), loan-purchase; HDFC Bank + Home Loan + Salaried + New home returns 25 items grouped under exactly the 4 section headers 'Identity & KYC', 'Income Documents', 'Property Documents', 'Other Requirements' (UI renders all 4 headers + 25 checklist-item-* rows). Income docs are employment-tailored (Salaried -> 'Last 3 months salary slips', 'Form-16'; Self-Employed Professional -> ITR/balance-sheet/P&L). FALSE-HAVE LARGELY FIXED: with only passport_qa.txt (identity) + seed stmt.csv in the vault, just 2 of 25 items showed 'You have this' (both OVD/identity items) — PAN Card, Passport-size photographs, Sale/Title Deed, ITR and salary items are all correctly 'Missing' (the 3 it8 false positives are gone). One residual: 'Aadhaar Card (as OVD for address and identity proof)' is marked 'have' from the passport doc (generic identity/address token overlap + category match) — minor. SOURCE TRANSPARENCY VERIFIED (5/5 UI runs): 'List the expenses in my bank statement' -> message-sources row + source chip 'stmt.csv' -> preview-text modal renders the file text + Download; 'How many visas in my passport?' -> 1 source row. Backend SSE returns 1 source for both doc questions on first try (no retry needed). PRIVACY HOLDS: 'Tell me a fun fact about the ocean.' and 'What is compound interest?' -> 0 message-sources rows, no private figures (1800/500/5000/5200/1850) leaked, backend sources=[]. REGRESSION: login demo@example.com/demo123 OK; create-share from checklist -> share-link + 8-digit password + 15-day expiry (expires 9/9/2026); public /share/:token rejects wrong password ('Incorrect password' toast, unlock-form stays) and unlocks with the correct one showing the doc + 'Download all (.zip)' (zip verified via API, PK header); empty share -> 400; unauthenticated /api/documents -> 401/403; all 11 nav routes render with no crashes. Cleanup done: uploaded docs, 4 conversations and both shares removed (shares are soft-revoked by design); only seed stmt.csv remains.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/loans/checklist", "issue": "Residual false 'You have this': 'Aadhaar Card (as OVD for address and identity proof)' matches a passport-only vault because generic tokens (identity/address/OVD) overlap the identity doc metadata and the category matches. Consider requiring at least one distinctive proper-noun token (aadhaar/pan/passport/form-16...) from the item name to match, not only generic descriptors."},
+      {"endpoint": "DELETE /api/shares/{id}", "issue": "Revoke is soft (revoked=true) so GET /api/shares keeps returning revoked shares; no hard-delete endpoint exists, so test/UI-created shares accumulate in the owner's list. Public access correctly 404s."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "All routes (console)", "issues": ["React warning: 'In HTML, <span> cannot be a child of <option>' logged during route sweep (hydration warning, non-blocking) — likely an icon/span rendered inside a native <option>."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_iteration9.py", "/app/test_reports/pytest/it9_results.xml"],
+  "action_items": ["Optional: tighten loan matching so generic 'identity/address/OVD' descriptors alone cannot mark Aadhaar Card as 'have' from a passport doc", "Optional: remove the <span> inside a native <option> to clear the React hydration warning"],
+  "critical_code_review_comments": ["routes_share.py loan matching relies on 4+ char token overlap of arbitrary LLM-generated item names; consider an explicit doc_type keyword map per checklist item for deterministic matching", "public_share() exposes the share password in GET /api/shares list responses — fine for the owner-scoped route but keep it out of any future non-owner surface"],
+  "success_rate": {"backend": "93% (13/14 pytest)", "frontend": "100% of tested flows"},
+  "seed_data_creation": "Uploaded TEST_it9 passport/statement docs + passport_qa.txt via UI, 1 share, 6 conversations — all deleted/revoked after testing; seed stmt.csv untouched.",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "demo@example.com / demo123",
+  "context_for_next_testing_agent": "Use /app/backend/tests/test_iteration9.py (pytest, ~2min, LLM calls). Vault should contain only seed stmt.csv. The only known open item is the Aadhaar false-'have' in the loan checklist; loan sections, chat source chips, privacy gating and the share flow are all verified working in iteration 9.",
+  "rca_of_the_issue": "Aadhaar false-'have': _LOAN_STOP does not remove descriptive tokens like 'identity'/'address'/'ovd', so a passport doc with category=identity satisfies the >=2-token-overlap rule for an Aadhaar line item."
+}

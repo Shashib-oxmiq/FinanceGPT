@@ -1,5 +1,6 @@
 import io
 import os
+import re
 import json
 import uuid
 import zipfile
@@ -190,7 +191,93 @@ async def chat_upload(file: UploadFile = File(...), user: dict = Depends(get_cur
         "created_at": now_iso(),
     }
     await db.chat_files.insert_one(dict(att))
-    return {"attachment_id": att["attachment_id"], "filename": att["filename"], "content_type": content_type, "size": att["size"]}
+
+    # Files uploaded through chat are also saved to the vault (auto-classified).
+    detected, metadata = await classify_document(data, file.filename, content_type)
+    doc = {
+        "document_id": str(uuid.uuid4()),
+        "user_id": user["user_id"],
+        "storage_path": path,
+        "original_filename": file.filename,
+        "content_type": content_type,
+        "size": len(data),
+        "category": detected or "other",
+        "auto_classified": bool(detected or metadata),
+        "metadata": metadata,
+        "note": "Uploaded via chat",
+        "is_deleted": False,
+        "created_at": now_iso(),
+    }
+    await db.documents.insert_one(dict(doc))
+
+    return {"attachment_id": att["attachment_id"], "document_id": doc["document_id"], "filename": att["filename"], "content_type": content_type, "size": att["size"]}
+
+
+MAX_DOC_BYTES = 12 * 1024 * 1024
+
+_STOPWORDS = {
+    "the", "and", "for", "are", "was", "were", "you", "your", "with", "have", "has", "had",
+    "about", "what", "when", "where", "which", "how", "many", "much", "them", "they", "this",
+    "that", "from", "into", "can", "could", "would", "should", "please", "tell", "give", "show",
+    "list", "there", "here", "some", "any", "all", "one", "two", "than", "then", "over", "under",
+    "more", "less", "get", "got", "does", "did", "will", "just", "like", "know", "want", "need",
+}
+
+# Only ground answers in documents when the query clearly refers to the user's documents/records.
+_DOC_INTENT = {
+    "document", "documents", "doc", "docs", "file", "files", "upload", "uploaded",
+    "passport", "visa", "visas", "immigration", "citizenship",
+    "statement", "statements", "expense", "expenses", "spend", "spending", "transaction", "transactions",
+    "bank", "card", "credit", "salary", "slip", "payslip", "invoice", "receipt",
+    "policy", "policies", "insurance", "nominee", "premium",
+    "tax", "return", "returns", "identity", "aadhaar", "aadhar", "pan", "license", "licence",
+    "loan", "mortgage", "property", "vehicle", "warranty", "medical", "prescription", "report",
+    "certificate", "degree", "transcript", "employment", "offer", "contract", "travel", "ticket",
+    "purchase", "bill", "utility", "address", "proof",
+}
+
+
+async def select_relevant_docs(user_id: str, query: str, limit: int = 3):
+    """Ground answers in the user's vault ONLY when the query clearly references their
+    documents/records. Uses whole-word matching and skips generic questions for privacy."""
+    words = re.findall(r"[a-z0-9]{3,}", (query or "").lower())
+    tokens = {w for w in words if w not in _STOPWORDS}
+    if not tokens or not (tokens & _DOC_INTENT):
+        return []  # No document intent -> never attach private files.
+
+    synonyms = {
+        "visa": ["passport", "immigration", "identity"], "visas": ["passport", "immigration"],
+        "passport": ["passport", "identity", "immigration"],
+        "expense": ["bank_statement", "credit_card_statement", "statement"],
+        "expenses": ["bank_statement", "credit_card_statement", "statement"],
+        "spend": ["bank_statement", "credit_card_statement"], "spending": ["bank_statement", "credit_card_statement"],
+        "statement": ["bank_statement", "credit_card_statement"], "card": ["credit_card_statement"],
+        "tax": ["tax"], "insurance": ["insurance"], "policy": ["insurance"], "premium": ["insurance"],
+        "vehicle": ["vehicle"], "car": ["vehicle"], "medical": ["medical"], "health": ["medical", "insurance"],
+        "salary": ["employment", "bank_statement"], "slip": ["employment"], "payslip": ["employment"],
+        "travel": ["travel"], "ticket": ["travel"], "purchase": ["purchase"],
+    }
+    expanded = set(tokens)
+    for t in list(tokens):
+        for s in synonyms.get(t, []):
+            expanded.add(s)
+
+    docs = await db.documents.find(
+        {"user_id": user_id, "is_deleted": False}, {"_id": 0}
+    ).sort("created_at", -1).to_list(300)
+    if not docs:
+        return []
+
+    scored = []
+    for d in docs:
+        if d.get("size", 0) > MAX_DOC_BYTES:
+            continue
+        hay = f"{d.get('original_filename','')} {d.get('category','')} {json.dumps(d.get('metadata',{}))}".lower()
+        score = sum(1 for t in expanded if re.search(rf"\b{re.escape(t)}\b", hay))
+        if score > 0:
+            scored.append((score, d))
+    scored.sort(key=lambda x: -x[0])
+    return [d for _, d in scored[:limit]]
 
 
 @router.post("/chat/conversations/{conversation_id}/message")
@@ -226,6 +313,25 @@ async def send_message(conversation_id: str, body: MessageBody, user: dict = Dep
         except Exception:
             continue
 
+    # Ground the answer in the user's vault: pull in relevant documents as readable context.
+    sources_meta = []
+    for d in await select_relevant_docs(user["user_id"], body.content):
+        try:
+            data, ctype = await run_in_threadpool(storage.get_object, d["storage_path"])
+            fc, tmp = ai.make_file_content(d.get("content_type") or ctype, data, d["original_filename"])
+            if fc:
+                file_contents.append(fc)
+                if tmp:
+                    temp_paths.append(tmp)
+                sources_meta.append({
+                    "document_id": d["document_id"],
+                    "filename": d["original_filename"],
+                    "category": d.get("category"),
+                    "content_type": d.get("content_type"),
+                })
+        except Exception:
+            continue
+
     await db.messages.insert_one({
         "message_id": str(uuid.uuid4()),
         "conversation_id": conversation_id,
@@ -237,10 +343,19 @@ async def send_message(conversation_id: str, body: MessageBody, user: dict = Dep
     })
 
     model_key = body.model if body.model in ai.MODELS else "claude"
-    # File attachments are only supported by Gemini; route multimodal messages accordingly.
+    # File attachments/vault docs are only supported by Gemini; route multimodal messages accordingly.
     if file_contents:
         model_key = "gemini"
     system = build_system_prompt(user, history)
+    if sources_meta:
+        doc_list = "\n".join(f"- [doc:{s['document_id']}] {s['filename']} ({s['category']})" for s in sources_meta)
+        system += (
+            "\n\nThe user's own documents are attached and listed below. When you use information "
+            "from one, CITE it inline using its exact marker [doc:ID]. When the user asks to find "
+            "specific entries (e.g. how many visas, expenses over an amount), QUOTE the exact "
+            "matching lines/rows verbatim from the document, one per line, then give a short summary. "
+            "Do not invent data that is not in the documents.\nDOCUMENTS:\n" + doc_list
+        )
     chat = ai.make_chat(conversation_id, system, model_key)
     user_message = UserMessage(text=body.content, file_contents=file_contents or None)
 
@@ -258,6 +373,11 @@ async def send_message(conversation_id: str, body: MessageBody, user: dict = Dep
                     os.remove(p)
                 except Exception:
                     pass
+        # Show the documents we actually read as sources (transparency), even if the
+        # model didn't emit an explicit [doc:ID] marker.
+        used_sources = sources_meta
+        if used_sources:
+            yield f"data: {json.dumps({'sources': used_sources})}\n\n"
         if full.strip():
             await db.messages.insert_one({
                 "message_id": str(uuid.uuid4()),
@@ -265,6 +385,7 @@ async def send_message(conversation_id: str, body: MessageBody, user: dict = Dep
                 "user_id": user["user_id"],
                 "role": "assistant",
                 "content": full,
+                "sources": used_sources,
                 "model": model_key,
                 "created_at": now_iso(),
             })
@@ -281,20 +402,58 @@ async def send_message(conversation_id: str, body: MessageBody, user: dict = Dep
 
 
 # ---------------- Documents ----------------
+async def classify_document(data: bytes, filename: str, content_type: str):
+    """Use Gemini to classify a document and extract key metadata. Best-effort."""
+    fc, tmp = ai.make_file_content(content_type, data, filename)
+    system = (
+        "You are a document classifier and extractor. Classify the document into EXACTLY one "
+        "category from this list: " + ", ".join(DOC_CATEGORIES) + ". "
+        "Also extract key metadata. Return ONLY JSON: {\"category\": <one-of-the-list>, "
+        "\"metadata\": {\"title\": str, \"doc_type\": str, \"issuer\": str, \"date\": str, "
+        "\"identifiers\": [str], \"summary\": str}}. Use empty strings/arrays when unknown."
+    )
+    prompt = f"Filename: {filename}. Classify this document and extract metadata. Return the JSON now."
+    try:
+        chat = ai.make_chat(f"classify_{uuid.uuid4().hex}", system, "gemini")
+        raw = await ai.complete_with_files(chat, prompt, [fc] if fc else None)
+        parsed = ai.parse_json(raw) or {}
+    except Exception:
+        parsed = {}
+    finally:
+        if tmp:
+            try:
+                os.remove(tmp)
+            except Exception:
+                pass
+    category = parsed.get("category")
+    if category not in DOC_CATEGORIES:
+        category = None
+    metadata = parsed.get("metadata") if isinstance(parsed.get("metadata"), dict) else {}
+    return category, metadata
+
+
 @router.post("/documents/upload")
 async def upload_document(
     file: UploadFile = File(...),
-    category: str = Form("other"),
+    category: str = Form("auto"),
     note: str = Form(""),
+    auto_classify: bool = Form(True),
     user: dict = Depends(get_current_user),
 ):
-    if category not in DOC_CATEGORIES:
-        category = "other"
     ext = file.filename.split(".")[-1].lower() if "." in file.filename else "bin"
     path = f"{APP_NAME}/uploads/{user['user_id']}/{uuid.uuid4().hex}.{ext}"
     data = await file.read()
     content_type = file.content_type or storage.MIME_TYPES.get(ext, "application/octet-stream")
     result = await run_in_threadpool(storage.put_object, path, data, content_type)
+
+    metadata = {}
+    detected = None
+    final_category = category if category in DOC_CATEGORIES else "other"
+    if auto_classify or category == "auto":
+        detected, metadata = await classify_document(data, file.filename, content_type)
+        if detected:
+            final_category = category if category in DOC_CATEGORIES else detected
+
     doc = {
         "document_id": str(uuid.uuid4()),
         "user_id": user["user_id"],
@@ -302,7 +461,9 @@ async def upload_document(
         "original_filename": file.filename,
         "content_type": content_type,
         "size": result.get("size", len(data)),
-        "category": category,
+        "category": final_category,
+        "auto_classified": bool((auto_classify or category == "auto") and (detected or metadata)),
+        "metadata": metadata,
         "note": note,
         "is_deleted": False,
         "created_at": now_iso(),
@@ -347,9 +508,11 @@ async def download_document(
 
 @router.delete("/documents/{document_id}")
 async def delete_document(document_id: str, user: dict = Depends(get_current_user)):
-    await db.documents.update_one(
-        {"document_id": document_id, "user_id": user["user_id"]}, {"$set": {"is_deleted": True}}
+    res = await db.documents.update_one(
+        {"document_id": document_id, "user_id": user["user_id"], "is_deleted": False}, {"$set": {"is_deleted": True}}
     )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Document not found")
     return {"ok": True}
 
 
@@ -542,6 +705,91 @@ async def analyze_statement(body: StatementBody, user: dict = Depends(get_curren
 @router.get("/insights")
 async def list_insights(user: dict = Depends(get_current_user)):
     return await db.insights.find({"user_id": user["user_id"]}, {"_id": 0}).sort("created_at", -1).to_list(100)
+
+
+# ---------------- Investments ----------------
+INVESTMENT_TYPES = [
+    "stock", "mutual_fund", "etf", "crypto", "real_estate", "gold",
+    "fixed_deposit", "bond", "pension", "other",
+]
+
+
+class InvestmentBody(BaseModel):
+    name: str
+    asset_type: str = "stock"
+    amount_invested: float = 0
+    current_value: float = 0
+    purchase_date: Optional[str] = ""
+    notes: Optional[str] = ""
+
+
+class InvestmentUpdate(BaseModel):
+    name: Optional[str] = None
+    asset_type: Optional[str] = None
+    amount_invested: Optional[float] = None
+    current_value: Optional[float] = None
+    purchase_date: Optional[str] = None
+    notes: Optional[str] = None
+
+
+@router.get("/investments/meta")
+async def investments_meta(user: dict = Depends(get_current_user)):
+    return {"types": INVESTMENT_TYPES}
+
+
+@router.post("/investments")
+async def add_investment(body: InvestmentBody, user: dict = Depends(get_current_user)):
+    inv = {"investment_id": str(uuid.uuid4()), "user_id": user["user_id"], "created_at": now_iso()}
+    inv.update(body.model_dump())
+    await db.investments.insert_one(dict(inv))
+    inv.pop("_id", None)
+    return inv
+
+
+@router.get("/investments")
+async def list_investments(user: dict = Depends(get_current_user)):
+    return await db.investments.find({"user_id": user["user_id"]}, {"_id": 0}).sort("created_at", -1).to_list(500)
+
+
+@router.get("/investments/summary")
+async def investments_summary(user: dict = Depends(get_current_user)):
+    items = await db.investments.find({"user_id": user["user_id"]}, {"_id": 0}).to_list(500)
+    invested = sum(float(i.get("amount_invested") or 0) for i in items)
+    current = sum(float(i.get("current_value") or 0) for i in items)
+    gain = current - invested
+    roi = round((gain / invested) * 100, 2) if invested else 0
+    by_type = {}
+    for i in items:
+        t = i.get("asset_type", "other")
+        by_type[t] = by_type.get(t, 0) + float(i.get("current_value") or 0)
+    return {
+        "count": len(items),
+        "total_invested": round(invested, 2),
+        "total_current": round(current, 2),
+        "total_gain": round(gain, 2),
+        "roi_pct": roi,
+        "by_type": by_type,
+        "net_worth": round(current, 2),
+    }
+
+
+@router.put("/investments/{investment_id}")
+async def update_investment(investment_id: str, body: InvestmentUpdate, user: dict = Depends(get_current_user)):
+    res = await db.investments.update_one(
+        {"investment_id": investment_id, "user_id": user["user_id"]},
+        {"$set": body.model_dump(exclude_unset=True)},
+    )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Investment not found")
+    return await db.investments.find_one({"investment_id": investment_id}, {"_id": 0})
+
+
+@router.delete("/investments/{investment_id}")
+async def delete_investment(investment_id: str, user: dict = Depends(get_current_user)):
+    res = await db.investments.delete_one({"investment_id": investment_id, "user_id": user["user_id"]})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Investment not found")
+    return {"ok": True}
 
 
 # ---------------- Dashboard ----------------

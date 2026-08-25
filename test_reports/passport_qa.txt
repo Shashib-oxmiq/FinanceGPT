@@ -1,0 +1,16 @@
+REPUBLIC OF INDIA — PASSPORT
+Passport No: Z1234567
+Surname: DEMO
+Given Name: QA USER
+Date of Birth: 12 MAR 1990
+Date of Issue: 01 JAN 2022
+Date of Expiry: 31 DEC 2032
+
+VISAS
+1. UNITED STATES OF AMERICA — B1/B2 Visitor Visa — Issued: 15 FEB 2023 — Expires: 14 FEB 2033 — Control No: US99881
+2. UNITED KINGDOM — Standard Visitor Visa — Issued: 03 MAY 2024 — Expires: 02 MAY 2026 — Control No: UK55221
+3. SCHENGEN (FRANCE) — Type C Short Stay Visa — Issued: 10 JUN 2025 — Expires: 09 JUN 2026 — Control No: FR11009
+
+IMMIGRATION STAMPS
+Entry: JFK 20 MAR 2023
+Exit: JFK 02 APR 2023

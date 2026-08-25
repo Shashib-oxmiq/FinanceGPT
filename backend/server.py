@@ -9,6 +9,7 @@ import storage
 from auth import router as auth_router
 from routes import router as api_router
 from routes_legacy import router as legacy_router
+from routes_share import router as share_router
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -18,6 +19,7 @@ app = FastAPI(title="Secure Document Vault & AI Advisor")
 app.include_router(auth_router)
 app.include_router(api_router)
 app.include_router(legacy_router)
+app.include_router(share_router)
 
 cors_origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()]
 app.add_middleware(

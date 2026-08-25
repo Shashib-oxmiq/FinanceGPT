@@ -29,7 +29,7 @@ DOC_CATEGORIES = [
     "financial", "tax", "bank_statement", "credit_card_statement", "investment",
     "insurance", "education", "identity", "medical", "property", "vehicle",
     "legal_estate", "warranty", "subscription", "employment", "immigration",
-    "personal", "other",
+    "travel", "purchase", "personal", "other",
 ]
 
 # Fields captured per insurance policy (covers common corner cases).

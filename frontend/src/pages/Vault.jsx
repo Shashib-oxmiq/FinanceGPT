@@ -9,8 +9,9 @@ export default function Vault() {
   const [docs, setDocs] = useState([]);
   const [categories, setCategories] = useState([]);
   const [filter, setFilter] = useState("");
-  const [uploadCat, setUploadCat] = useState("financial");
+  const [uploadCat, setUploadCat] = useState("auto");
   const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState("");
   const fileRef = useRef(null);
 
   const load = () => {
@@ -23,18 +24,27 @@ export default function Vault() {
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [filter]);
 
   const upload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
     setUploading(true);
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("category", uploadCat);
-    try {
-      await api.post("/documents/upload", fd, { headers: { "Content-Type": "multipart/form-data" } });
-      toast.success("Uploaded");
-      load();
-    } catch { toast.error("Upload failed"); }
-    finally { setUploading(false); if (fileRef.current) fileRef.current.value = ""; }
+    let ok = 0;
+    for (let i = 0; i < files.length; i++) {
+      setProgress(`Uploading & classifying ${i + 1}/${files.length}…`);
+      const fd = new FormData();
+      fd.append("file", files[i]);
+      fd.append("category", uploadCat);
+      fd.append("auto_classify", uploadCat === "auto" ? "true" : "false");
+      try {
+        await api.post("/documents/upload", fd, { headers: { "Content-Type": "multipart/form-data" } });
+        ok++;
+      } catch { /* continue with the rest */ }
+    }
+    setProgress("");
+    setUploading(false);
+    if (fileRef.current) fileRef.current.value = "";
+    if (ok === files.length) toast.success(`${ok} document${ok !== 1 ? "s" : ""} uploaded`);
+    else toast.error(`${ok}/${files.length} uploaded — some failed`);
+    load();
   };
 
   const download = async (d) => {
@@ -63,15 +73,16 @@ export default function Vault() {
       <PageHeader
         testid="vault-header"
         title="Document Vault"
-        subtitle="Encrypted storage for bank statements, tax, IDs, insurance and immigration records."
+        subtitle="Encrypted storage for all your important documents. Upload several at once — Everkin auto-classifies each and extracts key details."
         actions={
           <div className="flex items-center gap-2">
             <select value={uploadCat} onChange={(e) => setUploadCat(e.target.value)} data-testid="upload-category" className="text-sm bg-background border border-input rounded-md px-2 py-2.5 focus:outline-none focus:ring-2 focus:ring-ring">
+              <option value="auto">Auto-detect (AI)</option>
               {categories.map((c) => <option key={c} value={c}>{CAT_LABELS[c] || c}</option>)}
             </select>
-            <input ref={fileRef} type="file" onChange={upload} className="hidden" data-testid="file-input" />
+            <input ref={fileRef} type="file" multiple onChange={upload} className="hidden" data-testid="file-input" />
             <button onClick={() => fileRef.current?.click()} disabled={uploading} data-testid="upload-button" className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-md text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60">
-              <UploadSimple size={16} weight="bold" /> {uploading ? "Uploading…" : "Upload"}
+              <UploadSimple size={16} weight="bold" /> {uploading ? (progress || "Uploading…") : "Upload"}
             </button>
           </div>
         }
@@ -94,7 +105,14 @@ export default function Vault() {
               <FileText size={28} weight="duotone" className="text-primary shrink-0" />
               <div className="min-w-0 flex-1">
                 <p className="font-medium text-sm truncate">{d.original_filename}</p>
-                <p className="text-[11px] tracking-[0.1em] uppercase text-muted-foreground mt-0.5">{CAT_LABELS[d.category] || d.category} · {(d.size / 1024).toFixed(0)} KB</p>
+                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                  <span className="text-[11px] tracking-[0.1em] uppercase text-muted-foreground">{CAT_LABELS[d.category] || d.category} · {(d.size / 1024).toFixed(0)} KB</span>
+                  {d.auto_classified && <span className="text-[9px] tracking-wider uppercase bg-primary/15 text-primary rounded px-1.5 py-0.5">AI</span>}
+                </div>
+                {d.metadata?.summary && <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2" data-testid={`meta-${d.document_id}`}>{d.metadata.summary}</p>}
+                {(d.metadata?.issuer || d.metadata?.date) && (
+                  <p className="text-[10px] text-muted-foreground mt-1">{[d.metadata.issuer, d.metadata.date].filter(Boolean).join(" · ")}</p>
+                )}
                 <div className="flex gap-3 mt-3">
                   <button onClick={() => download(d)} data-testid={`download-${d.document_id}`} className="text-xs flex items-center gap-1 text-primary hover:underline"><DownloadSimple size={14} /> Open</button>
                   <button onClick={() => del(d.document_id)} data-testid={`delete-doc-${d.document_id}`} className="text-xs flex items-center gap-1 text-destructive hover:underline"><Trash size={14} /> Remove</button>

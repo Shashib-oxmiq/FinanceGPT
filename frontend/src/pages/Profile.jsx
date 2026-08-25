@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { api } from "../lib/api";
 import { Page, PageHeader } from "../components/Page";
-import { FloppyDisk } from "@phosphor-icons/react";
+import { FloppyDisk, Sparkle } from "@phosphor-icons/react";
 
 const SECTION_LABELS = {
   personal: "Personal", contact: "Contact", identity: "Identity Documents",
@@ -17,6 +17,21 @@ export default function Profile() {
   const [profile, setProfile] = useState({});
   const [completeness, setCompleteness] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [autofilling, setAutofilling] = useState(false);
+
+  const autofill = async () => {
+    setAutofilling(true);
+    try {
+      const { data } = await api.post("/profile/from-documents");
+      setProfile(data.profile || {});
+      setCompleteness(data.completeness);
+      toast.success(`Filled ${data.filled} field${data.filled !== 1 ? "s" : ""} from your documents`);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Could not auto-fill");
+    } finally {
+      setAutofilling(false);
+    }
+  };
 
   useEffect(() => {
     api.get("/profile").then(({ data }) => {
@@ -50,9 +65,14 @@ export default function Profile() {
         title="Your Profile"
         subtitle="This structured data powers form auto-fill and your legacy handover pack. Sensitive fields are masked."
         actions={
-          <button onClick={save} disabled={busy} data-testid="save-profile" className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-md text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60">
-            <FloppyDisk size={16} weight="duotone" /> {busy ? "Saving…" : "Save"}
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={autofill} disabled={autofilling} data-testid="autofill-profile" className="flex items-center gap-2 border border-border px-4 py-2.5 rounded-md text-sm font-semibold hover:bg-secondary transition-colors disabled:opacity-60">
+              <Sparkle size={16} weight="duotone" className={autofilling ? "animate-spin" : ""} /> {autofilling ? "Reading…" : "Auto-fill from documents"}
+            </button>
+            <button onClick={save} disabled={busy} data-testid="save-profile" className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-md text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60">
+              <FloppyDisk size={16} weight="duotone" /> {busy ? "Saving…" : "Save"}
+            </button>
+          </div>
         }
       />
 

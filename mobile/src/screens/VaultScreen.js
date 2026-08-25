@@ -6,12 +6,12 @@ import * as DocumentPicker from "expo-document-picker";
 import { api } from "../api";
 import { theme } from "../theme";
 
-const CATS = ["financial", "tax", "bank_statement", "credit_card_statement", "investment", "insurance", "education", "identity", "medical", "property", "vehicle", "legal_estate", "warranty", "subscription", "employment", "immigration", "personal", "other"];
-const LABEL = (c) => c.replace(/_/g, " ").replace(/\b\w/g, (x) => x.toUpperCase());
+const CATS = ["auto", "financial", "tax", "bank_statement", "credit_card_statement", "investment", "insurance", "education", "identity", "medical", "property", "vehicle", "legal_estate", "warranty", "subscription", "employment", "immigration", "personal", "other"];
+const LABEL = (c) => (c === "auto" ? "Auto-detect" : c.replace(/_/g, " ").replace(/\b\w/g, (x) => x.toUpperCase()));
 
 export default function VaultScreen() {
   const [docs, setDocs] = useState([]);
-  const [cat, setCat] = useState("financial");
+  const [cat, setCat] = useState("auto");
   const [uploading, setUploading] = useState(false);
 
   const load = useCallback(async () => {
@@ -20,18 +20,23 @@ export default function VaultScreen() {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const upload = async () => {
-    const res = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true });
+    const res = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true, multiple: true });
     if (res.canceled || !res.assets?.length) return;
-    const file = res.assets[0];
     setUploading(true);
-    try {
-      const form = new FormData();
-      form.append("file", { uri: file.uri, name: file.name, type: file.mimeType || "application/octet-stream" });
-      form.append("category", cat);
-      await api.post("/documents/upload", form, { headers: { "Content-Type": "multipart/form-data" } });
-      load();
-    } catch { Alert.alert("Upload failed"); }
-    finally { setUploading(false); }
+    let ok = 0;
+    for (const file of res.assets) {
+      try {
+        const form = new FormData();
+        form.append("file", { uri: file.uri, name: file.name, type: file.mimeType || "application/octet-stream" });
+        form.append("category", cat);
+        form.append("auto_classify", cat === "auto" ? "true" : "false");
+        await api.post("/documents/upload", form, { headers: { "Content-Type": "multipart/form-data" } });
+        ok++;
+      } catch {}
+    }
+    setUploading(false);
+    if (ok < res.assets.length) Alert.alert("Upload", `${ok}/${res.assets.length} uploaded`);
+    load();
   };
 
   const del = async (id) => { await api.delete(`/documents/${id}`); load(); };

@@ -15,6 +15,8 @@ export const CATEGORY_LABELS = {
   subscription: "Subscription",
   employment: "Employment",
   immigration: "Immigration",
+  travel: "Travel",
+  purchase: "Big Purchase",
   personal: "Personal",
   other: "Other",
 };

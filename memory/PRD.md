@@ -39,6 +39,8 @@ Chrome extension + native mobile app (Expo)**.
 - 2026-08-25: Native mobile app (Expo) — Login/Register, Advisor chat w/ attachments, Dashboard, Insurance, Vault, Legacy, Money Insights.
 - 2026-08-25: Money Insights (statement review), expanded to 18 life document categories, broadened whole-life advisor prompt, shared category labels.
 
+- 2026-08-25: Chat uploads land in Vault; AI auto-classify + metadata on upload; document-grounded chat with source chips + inline preview (privacy-gated to document-intent queries); Money Insights; Investment Tracker; Profile auto-fill from documents; Loan Prep (sectioned checklists tailored by bank/loan/employment/purchase) + secure password-protected shares (8-digit password, 15-day expiry) with public /share/:token page; categories expanded (20 incl. travel, purchase). Verified iterations 8 & 9.
+
 ## Test Status
 - Web frontend: 100% pass (iterations 3 & 4). Backend endpoints curl-verified incl. insights.
 - Native app: code-complete, must be run/built on user's machine via Expo/EAS (cannot run a simulator in this cloud container).

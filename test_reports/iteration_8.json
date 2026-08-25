@@ -1,0 +1,52 @@
+{
+  "summary": "Iteration 8 retest of the HIGH privacy bug + loan-match tightening + regression. PRIVACY FIX VERIFIED (backend + UI): with a bank statement and a passport in the vault, generic questions ('Tell me a fun fact about the ocean.', 'What is compound interest?', 'Who wrote Hamlet?') asked in fresh conversations return sources=[] from the SSE stream, render NO [data-testid=message-sources] row and volunteer none of the user's private figures (1800/500/5000/SIP). select_relevant_docs() confirmed to return [] for those queries via direct call. GROUNDING still works: 'How many visas are in my passport?' -> source chip passport_qa.txt -> preview-text modal renders the passport text + Download button; 'List the expenses in my bank statement' -> chip stmt.csv, preview-text + Download OK. LOAN MATCH partially fixed: PAN Card / Aadhaar Card are now correctly 'missing' from a single identity doc (was falsely 'have' in it7), but 3 false 'You have this' remain (Passport-size photographs, ITR-with-computation, Sale/Title Deed) — see backend issues. Regression: login demo@example.com/demo123 OK, all 11 nav routes load clean, secure share create returns 8-digit password + 15-day expiry (created 2026-08-25 -> expires 2026-09-09), public /share/:token rejects wrong password ('Incorrect password' toast, form stays) and unlocks with the correct one showing both docs + Download all (.zip), revoked shares return 404 publicly, empty share -> 400, profile auto-fill from documents extracted full_name/DOB/nationality/passport no+expiry/visa, multi-file vault upload + auto-classify (identity) OK, POST /api/insights/statement returns a full analysis. Pytest: 10/12 passed (2 documented failures below). All test artifacts cleaned (shares, conversations, messages, insights, uploaded docs, profile reset); only the pre-existing seed doc stmt.csv remains.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/loans/checklist", "issue": "3 false 'You have this' remain with only passport_qa.txt (+stmt.csv) in the vault: (a) 'Passport-size photographs (3-4 recent)' matches on the incidental token 'passport' in a multi-part requirement name; (b) 'Income Tax Returns (ITR) ... with computation' matches because the 4-char stopword 'with' appears in the doc metadata summary; (c) 'Sale Deed / Title Deed of the Property' matches because the metadata JSON *key* \"title\" is included in the haystack (json.dumps(metadata)). Fix: reuse routes.py _STOPWORDS when building name_tokens (drop with/last/years/copies/recent/applicable/...), build the haystack from metadata VALUES only (not keys), and require >=2 token overlap (or category+name overlap) for multi-part requirement names."},
+      {"endpoint": "POST /api/chat/conversations/{id}/message (sources event)", "issue": "Source attribution is unreliable/flaky: used_sources is filtered to documents the LLM explicitly cited with [doc:ID]. Observed 5 runs where the answer clearly quoted the user's statement rows but emitted no marker -> sources event never sent and no chip in UI (100% failure when two similarly-named statement docs were in the vault, ~25% with one). Transparency gap: private docs were read but not disclosed. Suggest emitting the grounded doc list (sources_meta) as 'used' when the answer is produced from them, or marking cited ones separately."},
+      {"endpoint": "GET /api/insights/statement response", "issue": "Response echoes internal user_id (and insight docs are not deletable via API — no DELETE /api/insights/{id}, cleanup needs direct DB access)."},
+      {"endpoint": "POST /api/shares (carry-over from it7)", "issue": "expiry_days <= 0 silently falls back to 15 days instead of 422; share password stored plaintext and echoed by GET /api/shares; no throttling on POST /api/shares/{token}/access."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Insights (select options)", "issue": "Still present from it7: React console error 'In HTML, <span> cannot be a child of <option> ... will cause a hydration error' on /insights.", "selector": "[data-testid=\"statement-select\"] option", "priority": "LOW"},
+      {"component": "Chat source chips", "issue": "Clicking a source chip whose document was deleted after the message was sent shows a red 'Could not load document' toast (download 404) with no inline explanation. Minor UX polish: mark stale sources or say 'document no longer available'.", "selector": "[data-testid=\"message-sources\"] button", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration8.py",
+    "/app/test_reports/pytest/it8.xml",
+    "/app/test_reports/it8_diag.py",
+    "/app/test_reports/it8_diag2.py",
+    "/app/test_reports/it8_diag3.py",
+    "/app/test_reports/it8_diag4.py",
+    "/app/test_reports/it8_diag5.py",
+    "/app/test_reports/it8_diag6.py",
+    "/app/test_reports/it8_cleanup.py",
+    "/app/test_reports/it8_cleanup_db.py"
+  ],
+  "action_items": [
+    "MEDIUM: Tighten loan checklist name_tokens (share _STOPWORDS, exclude 'with/last/years/recent/copies/applicable'), match metadata VALUES only (not JSON keys like 'title'), and require stronger overlap for multi-part requirement names — currently 'Passport-size photographs', 'ITR ... with computation' and 'Sale Deed / Title Deed' are falsely 'You have this' from one passport.",
+    "MEDIUM: Make chat source attribution deterministic — do not depend on the model echoing [doc:ID]; emit the grounded documents that were actually attached (observed answers quoting statement rows with no Sources chip).",
+    "LOW: Fix the <span> inside <option> hydration error on /insights (carried from iteration 7).",
+    "LOW: Validate expiry_days > 0, hash the share password, add throttling to POST /api/shares/{token}/access."
+  ],
+  "critical_code_review_comments": [
+    "routes_share.py loan matching builds its haystack with json.dumps(metadata), so metadata KEYS ('title', 'doc_type', 'issuer', 'summary') participate in matching — restrict to values.",
+    "The loan token exclusion set is ad-hoc ({proof, document, copy, card, form}); import the _STOPWORDS list from routes.py to avoid drift and 4-char stopword matches like 'with'.",
+    "select_relevant_docs is now correct and privacy-safe, but sources shown to the user are a *subset* of the docs actually fed to the LLM (only cited ones) — the audit trail understates what was read.",
+    "routes.py is still ~800 lines (>700): split chat/documents/insights/investments.",
+    "GET /api/shares returns the plaintext share password for every share including revoked ones."
+  ],
+  "success_rate": {"backend": "83% (10/12 pytest passed; 2 known failures: loan false-matches + flaky source citation)", "frontend": "100% of retested flows (privacy no-sources, grounding+preview+download, loans UI, share unlock, all routes)"},
+  "seed_data_creation": "Uploaded TEST_it8_* passport/statement docs, passport_qa.txt, conversations and 3 shares under demo@example.com. All removed (API deletes + /app/test_reports/it8_cleanup_db.py); demo profile reset to {}. Only the pre-existing seed document stmt.csv (BANK STATEMENT: Rent -1800 / SIP -500 / Salary 5000) remains.",
+  "should_call_test_agent_after_fix": true,
+  "should_main_agent_self_test": false,
+  "test_credentials": "demo@example.com / demo123 (login verified via UI + API; no lockout triggered)",
+  "context_for_next_testing_agent": "Run backend suite with -n0: pytest /app/backend/tests/test_iteration8.py. The 2 failing tests are real product issues, not test bugs: (1) TestLoanChecklist -> 3 false 'have' items (metadata key 'title', stopword 'with', incidental 'passport'); (2) TestChatGrounding::test_statement_question_grounds -> sources only appear when the LLM emits [doc:ID]; it failed 4/4 when two statement docs with similar names existed, passed in UI with a single stmt.csv. UI selectors: login-email/login-password/login-submit, new-conversation (use .first), chat-input, chat-send, message-assistant, message-sources scoped to the last assistant message, source-<docid>, preview-text, preview-download, loan-bank/loan-type/build-checklist/checklist-item-N (UI uppercases 'You have this' -> match case-insensitively), share-password-input/unlock-button/share-contents/download-all. Always start a NEW conversation before privacy checks — /chat auto-selects the last conversation and old grounded messages make message-sources counts misleading.",
+  "rca_of_the_issue": "Privacy bug is FIXED: select_relevant_docs now returns [] unless query tokens (stopwords removed) intersect _DOC_INTENT, and matches whole words; verified by direct call and via UI/SSE. Remaining loan false-positives root cause: name_tokens are matched against f\"{filename} {json.dumps(metadata)}\" so metadata keys ('title') and generic 4-char words ('with') produce whole-word hits, and any requirement name containing 'passport' (e.g. 'Passport-size photographs') matches the passport file."
+}

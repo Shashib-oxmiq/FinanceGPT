@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { api, API } from "../lib/api";
 import {
-  PaperPlaneRight, Plus, Trash, Sparkle, User, Robot, Paperclip, X, ListBullets, File as FileIcon,
+  PaperPlaneRight, Plus, Trash, Sparkle, User, Robot, Paperclip, X, ListBullets,
+  File as FileIcon, Eye, DownloadSimple,
 } from "@phosphor-icons/react";
+import Modal from "../components/Modal";
 
 export default function Chat() {
   const [conversations, setConversations] = useState([]);
@@ -16,8 +18,40 @@ export default function Chat() {
   const [uploading, setUploading] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [preview, setPreview] = useState(null);
   const scrollRef = useRef(null);
   const fileRef = useRef(null);
+
+  const openPreview = async (src) => {
+    setPreview({ ...src, loading: true, url: null });
+    try {
+      const token = localStorage.getItem("vault_token");
+      const res = await fetch(`${API}/documents/${src.document_id}/download`, {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error();
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const ct = src.content_type || blob.type || "";
+      let text = null;
+      if (ct.startsWith("text/") || ct.includes("csv") || ct.includes("json") || /\.(txt|csv|json|md)$/i.test(src.filename || "")) {
+        try { text = await blob.text(); } catch {}
+      }
+      setPreview({ ...src, loading: false, url, text });
+    } catch {
+      toast.error("Could not load document");
+      setPreview(null);
+    }
+  };
+
+  const downloadPreview = () => {
+    if (!preview?.url) return;
+    const a = document.createElement("a");
+    a.href = preview.url;
+    a.download = preview.filename || "document";
+    a.click();
+  };
 
   const loadConvos = async () => {
     const { data } = await api.get("/chat/conversations");
@@ -122,6 +156,12 @@ export default function Chat() {
               setMessages((m) => {
                 const copy = [...m];
                 copy[copy.length - 1] = { ...copy[copy.length - 1], content: copy[copy.length - 1].content + evt.delta };
+                return copy;
+              });
+            } else if (evt.sources) {
+              setMessages((m) => {
+                const copy = [...m];
+                copy[copy.length - 1] = { ...copy[copy.length - 1], sources: evt.sources };
                 return copy;
               });
             } else if (evt.error) {
@@ -235,7 +275,23 @@ export default function Chat() {
                     ))}
                   </div>
                 )}
-                {m.content || (streaming ? <span className="animate-pulse">▊</span> : "")}
+                {(() => {
+                  const clean = (m.content || "").replace(/\[doc:[^\]]+\]/g, "").replace(/[ \t]{2,}/g, " ");
+                  return clean || (streaming ? <span className="animate-pulse">▊</span> : "");
+                })()}
+                {(m.sources || []).length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-border/60" data-testid="message-sources">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">Sources</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {m.sources.map((sdoc) => (
+                        <button key={sdoc.document_id} onClick={() => openPreview(sdoc)} data-testid={`source-${sdoc.document_id}`}
+                          className="flex items-center gap-1 text-[11px] bg-secondary hover:bg-primary/15 hover:text-primary rounded-full px-2.5 py-1 transition-colors">
+                          <Eye size={12} weight="duotone" /> {sdoc.filename}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -275,6 +331,30 @@ export default function Chat() {
           </div>
         </div>
       </div>
+
+      <Modal open={!!preview} onClose={() => setPreview(null)} title={preview?.filename || "Document"} testid="doc-preview">
+        {preview?.loading && <p className="text-sm text-muted-foreground py-8 text-center">Loading document…</p>}
+        {preview && !preview.loading && (
+          <div>
+            <div className="rounded-md overflow-hidden border border-border bg-background mb-4" style={{ minHeight: 200 }}>
+              {(preview.content_type || "").startsWith("image/") ? (
+                <img src={preview.url} alt={preview.filename} className="w-full object-contain max-h-[60vh]" />
+              ) : (preview.content_type || "").includes("pdf") ? (
+                <iframe title="preview" src={preview.url} className="w-full" style={{ height: "60vh" }} />
+              ) : preview.text != null ? (
+                <pre className="p-4 text-xs whitespace-pre-wrap overflow-auto max-h-[60vh] font-mono" data-testid="preview-text">{preview.text}</pre>
+              ) : (
+                <div className="p-8 text-center text-sm text-muted-foreground">
+                  Preview not available for this file type. Use download to open it.
+                </div>
+              )}
+            </div>
+            <button onClick={downloadPreview} data-testid="preview-download" className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-md text-sm font-semibold hover:opacity-90 transition-opacity">
+              <DownloadSimple size={16} weight="bold" /> Download
+            </button>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
