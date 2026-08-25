@@ -1,4 +1,5 @@
 import io
+import os
 import json
 import uuid
 import zipfile
@@ -96,6 +97,65 @@ async def delete_insurance(policy_id: str, user: dict = Depends(get_current_user
 
 class InsuranceAdviseBody(BaseModel):
     question: Optional[str] = ""
+
+
+class PolicyAnalyzeBody(BaseModel):
+    document_id: Optional[str] = None
+    insurance_type: Optional[str] = "health"
+
+
+@router.post("/insurance/analyze")
+async def analyze_policy(body: PolicyAnalyzeBody, user: dict = Depends(get_current_user)):
+    file_contents, temp_paths = [], []
+    itype = body.insurance_type or "health"
+    if body.document_id:
+        doc = await db.documents.find_one(
+            {"document_id": body.document_id, "user_id": user["user_id"], "is_deleted": False}, {"_id": 0}
+        )
+        if not doc:
+            raise HTTPException(status_code=404, detail="Document not found")
+        data, ctype = await run_in_threadpool(storage.get_object, doc["storage_path"])
+        fc, tmp = ai.make_file_content(doc.get("content_type") or ctype, data, doc["original_filename"])
+        if fc:
+            file_contents.append(fc)
+            if tmp:
+                temp_paths.append(tmp)
+
+    system = (
+        "You are an expert insurance advisor. Analyze the policy (attached document if provided, else "
+        "use standard knowledge for the given insurance type) and return ONLY JSON: {"
+        "\"policy_type\": str, \"insurer\": str, \"summary\": str, "
+        "\"covered\": [{\"item\": str, \"conditions\": str}], "
+        "\"not_covered\": [str], \"corner_cases\": [str], "
+        "\"emergency_numbers\": [{\"label\": str, \"number\": str}], "
+        "\"dos\": [str], \"donts\": [str], \"claim_steps\": [str]}. "
+        "Focus on what is covered WITH its conditions/limits, clear exclusions, tricky corner cases "
+        "(waiting periods, sub-limits, room-rent caps, pre-existing clauses, no-claim bonus, "
+        "cashless vs reimbursement, nominee claim process). For emergency_numbers include the kind "
+        "of numbers to call during an incident (insurer helpline/TPA, ambulance, police, roadside "
+        "assistance) — use placeholders if unknown. dos/donts = what to do and what NOT to do during "
+        "an incident (e.g. do inform insurer within X hours; don't admit liability, don't move the "
+        "vehicle before photos, don't sign blank forms). Be practical and specific."
+    )
+    prompt = f"Insurance type: {itype}. Analyze the policy and return the JSON now."
+    try:
+        chat = ai.make_chat(f"polan_{uuid.uuid4().hex}", system, "gemini")
+        raw = await ai.complete_with_files(chat, prompt, file_contents or None)
+        parsed = ai.parse_json(raw)
+    finally:
+        for p in temp_paths:
+            try:
+                os.remove(p)
+            except Exception:
+                pass
+    if not parsed:
+        raise HTTPException(status_code=422, detail="Could not analyze this policy")
+    await db.policy_analyses.insert_one({
+        "analysis_id": str(uuid.uuid4()), "user_id": user["user_id"],
+        "document_id": body.document_id, "insurance_type": itype,
+        "result": parsed, "created_at": now_iso(),
+    })
+    return parsed
 
 
 @router.post("/insurance/review")

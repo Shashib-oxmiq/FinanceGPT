@@ -1,0 +1,30 @@
+{
+  "summary": "Iteration 10 e2e validation of the Insurance Policy Guide + Voice playback. Backend pytest /app/backend/tests/test_iteration10.py: 9/9 PASSED (~82s). POST /api/insurance/analyze returns all 7 expected keys (covered[{item,conditions}], not_covered, corner_cases, emergency_numbers[{label,number}], dos, donts, claim_steps) + summary for health and auto, 404 for an unknown document_id, and 401/403 unauthenticated; no _id leakage. POST /api/tts returns {url:/api/tts/<key>.mp3}, is content-hash cached (same text -> same url), 400 on blank text, 401/403 unauthenticated; GET of the url returns 200 audio/mpeg (>1KB) and unknown key -> 404. UI VERIFIED on /insurance: [data-testid=policy-guide] renders with guide-type (Health/Life/Auto/Home/Travel/Critical illness), guide-doc defaulting to 'General guidance (no document)', analyze-policy. Health + no document -> analysis-result in ~25s with summary and all six GuideBox sections (Covered (with conditions), Not covered, Corner cases to know, Emergency numbers, During an incident - DO, During an incident - DON'T) all populated (no '-' placeholders) plus the optional 'How to claim' box (verified via node locator; inner_text is uppercased by CSS text-transform). listen-policy -> POST /api/tts 200 then <audio data-testid=policy-audio> with absolute src https://<host>/api/tts/<key>.mp3, mp3 served 200 audio/mpeg, readyState=4, duration 189s / 126s, currentTime advancing, no media error -> voice playback genuinely works. ANALYZE WITH DOCUMENT: uploaded TEST_it10ui_policy.txt (category=insurance) appeared in guide-doc; selecting it + Analyze returned a document-grounded guide (quotes Rs 5,00,000 sum insured, 1% room-rent cap = Rs 5,000/day, 36-month PED wait, helpline 1800-425-2255) and Listen again produced playing audio. REGRESSION: login demo@example.com/demo123 OK; Add policy + AI Review visible; /chat 'List the expenses in my bank statement' -> message-sources chip 'stmt.csv'; generic 'fun fact about the ocean' -> no new source row; nav sweep /chat /insights /investments /loans /vault /legacy /insurance all render, no crash. CLEANUP: test document deleted (vault back to seed stmt.csv only), 7 policy_analyses and the 2 test conversations + 28 messages removed.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/tts/{key}.mp3", "issue": "Unauthenticated endpoint: anyone holding the 24-char key can stream the synthesized audio, which narrates the user's policy summary/coverage. Consider requiring auth (or a signed, short-lived token) since the audio can contain document-derived personal details."},
+      {"endpoint": "POST /api/tts", "issue": "Audio cached in a process-local unbounded dict (_CACHE). It is lost on backend restart/reload (already-rendered <audio> then 404s 'Audio expired, regenerate' with no UI recovery path) and grows without eviction -> memory leak; also breaks with >1 worker."},
+      {"endpoint": "POST /api/tts", "issue": "clean_for_tts truncates to 4000 chars; long guides are silently cut mid-sentence (no indication to the user)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "All routes (console)", "issues": ["Unfixed from iteration 9: React hydration warning 'In HTML, <span> cannot be a child of <option>' logged on route load (non-blocking)."]},
+      {"screen": "Insurance - Policy Guide", "issues": ["No visible error/retry affordance if the cached TTS mp3 404s (audio element just fails silently); minor."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_iteration10.py", "/app/backend/tests/it10_seed.py", "/app/test_reports/pytest/it10_results.xml"],
+  "action_items": ["Optional: protect/sign GET /api/tts/{key}.mp3 and persist or bound the TTS cache (LRU / object storage) so audio survives backend reloads", "Optional: clear the <span>-inside-<option> React hydration warning"],
+  "critical_code_review_comments": ["routes_voice.py keeps mp3 bytes in a module-level dict with no eviction and no auth on retrieval — both a memory and privacy concern for production", "Insurance.jsx speak() omits corner_cases, emergency_numbers and claim_steps from the narration; users listening (the accessibility case) miss the emergency numbers, which are arguably the most important part to hear"],
+  "updated_files": ["/app/backend/tests/test_iteration10.py", "/app/backend/tests/it10_seed.py"],
+  "success_rate": {"backend": "100% (9/9 pytest)", "frontend": "100% of tested flows"},
+  "seed_data_creation": "Uploaded TEST_it10_policy.txt (pytest, auto-deleted) and TEST_it10ui_policy.txt (UI test, deleted); vault back to seed stmt.csv only. policy_analyses collection cleared; 2 test conversations deleted.",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "demo@example.com / demo123",
+  "context_for_next_testing_agent": "Use /app/backend/tests/test_iteration10.py for Policy Guide + TTS regression (~85s, real LLM/TTS calls) and it10_seed.py seed|clean to create/remove an insurance-category doc for guide-doc UI tests. Gotchas: guide-doc <option>s are hidden (native select) so wait via page.wait_for_function on option count, not wait_for_selector on the option; GuideBox titles are uppercased by CSS text-transform so inner_text substring checks must be case-insensitive (use get_by_text node counts instead). Policy Guide, voice playback (audio actually plays), doc-grounded analysis, chat source chips and the nav sweep are all verified working.",
+  "rca_of_the_issue": "No functional defects found this iteration. The one initial 'doc not listed in guide-doc' failure was a test race (options asserted before the /api/documents?category=insurance response resolved); re-run with a wait_for_function confirmed the option renders correctly. The 'How to claim missing' observation was a test artifact of CSS text-transform uppercasing."
+}

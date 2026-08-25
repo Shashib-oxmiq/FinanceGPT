@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { api } from "../lib/api";
+import { api, API } from "../lib/api";
 import { Page, PageHeader } from "../components/Page";
-import { Plus, Trash, ShieldCheck, Sparkle, X, WarningCircle, CheckCircle } from "@phosphor-icons/react";
+import { Plus, Trash, ShieldCheck, Sparkle, X, WarningCircle, CheckCircle, SpeakerHigh, FileMagnifyingGlass } from "@phosphor-icons/react";
 import Modal from "../components/Modal";
+
+const AUDIO_BASE = API.replace(/\/api$/, "");
 
 const EMPTY = {
   policy_type: "life_term", provider: "", policy_number: "", sum_assured: "", premium_amount: "",
@@ -20,11 +22,46 @@ export default function Insurance() {
   const [form, setForm] = useState(EMPTY);
   const [review, setReview] = useState(null);
   const [reviewing, setReviewing] = useState(false);
+  const [guideType, setGuideType] = useState("health");
+  const [guideDoc, setGuideDoc] = useState("");
+  const [insDocs, setInsDocs] = useState([]);
+  const [analysis, setAnalysis] = useState(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [audioUrl, setAudioUrl] = useState(null);
+  const [speaking, setSpeaking] = useState(false);
+
+  const analyzePolicy = async () => {
+    setAnalyzing(true); setAnalysis(null); setAudioUrl(null);
+    try {
+      const { data } = await api.post("/insurance/analyze", { insurance_type: guideType, document_id: guideDoc || null });
+      setAnalysis(data);
+    } catch (e) { toast.error(e.response?.data?.detail || "Could not analyze policy"); }
+    finally { setAnalyzing(false); }
+  };
+
+  const speak = async () => {
+    if (!analysis) return;
+    setSpeaking(true);
+    const parts = [
+      `Here is your ${analysis.policy_type || guideType} policy guide.`,
+      analysis.summary,
+      "What is covered: " + (analysis.covered || []).map((c) => `${c.item}${c.conditions ? ", " + c.conditions : ""}`).join(". "),
+      "What is not covered: " + (analysis.not_covered || []).join(". "),
+      "During an incident, do: " + (analysis.dos || []).join(". "),
+      "Do not: " + (analysis.donts || []).join(". "),
+    ];
+    try {
+      const { data } = await api.post("/tts", { text: parts.filter(Boolean).join(". "), voice: "sage" });
+      setAudioUrl(`${AUDIO_BASE}${data.url}`);
+    } catch { toast.error("Voice generation failed"); }
+    finally { setSpeaking(false); }
+  };
 
   const load = () => api.get("/insurance").then(({ data }) => setPolicies(data));
   useEffect(() => {
     load();
     api.get("/insurance/meta").then(({ data }) => setTypes(data.types));
+    api.get("/documents?category=insurance").then(({ data }) => setInsDocs(data)).catch(() => {});
   }, []);
 
   const setF = (k, v) => setForm((f) => ({ ...f, [k]: v }));
@@ -87,6 +124,46 @@ export default function Insurance() {
         </div>
       )}
 
+      <div className="border border-border rounded-lg p-6 bg-card mb-6" data-testid="policy-guide">
+        <h3 className="font-heading text-lg font-bold flex items-center gap-2 mb-1"><FileMagnifyingGlass size={18} weight="duotone" className="text-primary" /> Understand a Policy</h3>
+        <p className="text-sm text-muted-foreground mb-4">Get a plain-English guide: what's covered (with conditions), what's not, corner cases, who to call during an incident, and what NOT to do — with voice playback.</p>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <select value={guideType} onChange={(e) => setGuideType(e.target.value)} data-testid="guide-type" className="bg-background border border-input rounded-md px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+            {["health", "life", "auto", "home", "travel", "critical illness"].map((t) => <option key={t} value={t}>{t[0].toUpperCase() + t.slice(1)}</option>)}
+          </select>
+          <select value={guideDoc} onChange={(e) => setGuideDoc(e.target.value)} data-testid="guide-doc" className="flex-1 bg-background border border-input rounded-md px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+            <option value="">General guidance (no document)</option>
+            {insDocs.map((d) => <option key={d.document_id} value={d.document_id}>{d.original_filename}</option>)}
+          </select>
+          <button onClick={analyzePolicy} disabled={analyzing} data-testid="analyze-policy" className="flex items-center justify-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-md text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60">
+            <Sparkle size={16} weight="duotone" className={analyzing ? "animate-spin" : ""} /> {analyzing ? "Analyzing…" : "Analyze"}
+          </button>
+        </div>
+
+        {analysis && (
+          <div className="mt-6 animate-fade-up" data-testid="analysis-result">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm text-muted-foreground flex-1">{analysis.summary}</p>
+              <button onClick={speak} disabled={speaking} data-testid="listen-policy" className="flex items-center gap-2 border border-border px-3 py-2 rounded-md text-sm hover:bg-secondary transition-colors disabled:opacity-60 shrink-0 ml-3">
+                <SpeakerHigh size={16} weight="duotone" className={speaking ? "animate-pulse" : ""} /> {speaking ? "Preparing…" : "Listen"}
+              </button>
+            </div>
+            {audioUrl && <audio src={audioUrl} controls autoPlay data-testid="policy-audio" className="w-full mb-4" />}
+            <div className="grid md:grid-cols-2 gap-4">
+              <GuideBox title="Covered (with conditions)" color="text-accent" items={(analysis.covered || []).map((c) => `${c.item}${c.conditions ? " — " + c.conditions : ""}`)} />
+              <GuideBox title="Not covered" color="text-destructive" items={analysis.not_covered} />
+              <GuideBox title="Corner cases to know" color="text-[hsl(var(--warning))]" items={analysis.corner_cases} />
+              <GuideBox title="Emergency numbers" color="text-primary" items={(analysis.emergency_numbers || []).map((e) => `${e.label}: ${e.number}`)} />
+              <GuideBox title="During an incident — DO" color="text-accent" items={analysis.dos} />
+              <GuideBox title="During an incident — DON'T" color="text-destructive" items={analysis.donts} />
+            </div>
+            {(analysis.claim_steps || []).length > 0 && (
+              <div className="mt-4"><GuideBox title="How to claim" color="text-primary" items={analysis.claim_steps} /></div>
+            )}
+          </div>
+        )}
+      </div>
+
       {policies.length === 0 ? (
         <div className="border border-dashed border-border rounded-lg p-16 text-center" data-testid="insurance-empty">
           <ShieldCheck size={40} weight="duotone" className="text-muted-foreground mx-auto mb-4" />
@@ -145,6 +222,18 @@ export default function Insurance() {
 function Row({ k, v }) {
   return <div className="flex justify-between gap-2"><dt className="text-muted-foreground">{k}</dt><dd className="font-medium text-right truncate">{v}</dd></div>;
 }
+function GuideBox({ title, items, color }) {
+  return (
+    <div className="border border-border rounded-md p-4 bg-background/40">
+      <p className={`text-xs tracking-[0.15em] uppercase mb-2 ${color}`}>{title}</p>
+      <ul className="space-y-1.5 text-sm text-muted-foreground">
+        {(items || []).map((it, i) => <li key={i}>• {it}</li>)}
+        {(!items || items.length === 0) && <li>—</li>}
+      </ul>
+    </div>
+  );
+}
+
 function ReviewList({ title, items, icon: Icon, color }) {
   return (
     <div>
