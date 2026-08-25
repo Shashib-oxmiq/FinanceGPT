@@ -1,0 +1,29 @@
+{
+  "summary": "Frontend-only validation of iteration 4 (Money Insights page, expanded categories, new nav item) on the public preview URL. Logged in as demo@example.com, verified sidebar order (nav-insights between nav-chat and nav-profile), uploaded a CSV bank statement via Vault (category 'Bank Statement'), ran AI analysis on /insights and confirmed full result panel (4 stat cards, summary, category bars, recurring subs, largest expenses, red flags, advice) rendered in ~15s with sensible numbers (Spend USD1,969.67 / Income USD5,000 / Net USD3,030.33). Verified all 18 expanded Vault categories, navigated all 9 sidebar routes with no crash, AI Advisor chat streamed a reply, Insurance add-policy portal modal opens (testid is 'add-policy', not 'add-policy-button'), landing page shows new hero copy + Money Insights card. Test statement deleted from Vault at the end. No backend testing per request.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Money Insights (/insights)", "issues": ["Category amounts rendered as 'USD82.4' / 'USD1,800' (currency code glued to number, no space, inconsistent decimals) — consider formatting with Intl.NumberFormat currency style and 2 decimals"]},
+      {"screen": "Insurance add-policy modal", "issues": ["START DATE / MATURITY DATE are plain inputs rather than a shadcn calendar/date picker (pre-existing, cosmetic)"]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Optional: dev-mode React warning in console on the app shell — 'In HTML, <span> cannot be a child of <option>. This will cause a hydration error.' Appeared while rendering select-based pages (Insights/Vault). Harmless in prod build but worth locating the offending select/option child.",
+    "Optional: format money values in Insights with Intl.NumberFormat (currency) instead of concatenating the currency code."
+  ],
+  "critical_code_review_comments": [
+    "Insights.jsx sorts docs by hardcoded priority using indexOf which yields -1 for unknown categories; works but fragile — consider an explicit rank map.",
+    "Insights.jsx: analyze() has no client-side timeout/abort; if Gemini stalls the button stays in 'Analyzing…' indefinitely."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not tested", "frontend": "100%"},
+  "seed_data_creation": "Uploaded /tmp/qa_statement.csv as a Bank Statement document for demo@example.com; deleted from Vault after testing (vault back to 0 docs).",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "demo@example.com / demo123 (works, no lockout triggered)",
+  "context_for_next_testing_agent": "All iteration-4 web features verified green. Insurance add-policy button testid is 'add-policy'; modal fields use 'form-*' testids and 'submit-policy'. Insights analysis takes ~10-20s; poll [data-testid=insights-result] up to 90s. Vault categories: 18 options from lib/categories.js. Mobile Expo app untested (not testable here).",
+  "rca_of_the_issue": "No functional defects found. Earlier apparent failures in my first run were test-script artifacts (page.evaluate ran before hydration; uppercase CSS transform vs inner_text comparison), re-verified with locators and all passed."
+}

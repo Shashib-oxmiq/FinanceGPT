@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    body { width: 320px; font-family: system-ui, sans-serif; margin: 0; background: #09090b; color: #f8f9fa; }
+    .head { padding: 16px; border-bottom: 1px solid #27272a; display: flex; align-items: center; gap: 8px; }
+    .head b { font-size: 15px; letter-spacing: -0.02em; }
+    .body { padding: 16px; }
+    label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.15em; color: #a1a1aa; }
+    input { width: 100%; box-sizing: border-box; margin: 6px 0 12px; padding: 8px; border-radius: 6px; border: 1px solid #27272a; background: #121212; color: #f8f9fa; font-size: 13px; }
+    button { width: 100%; padding: 10px; border: none; border-radius: 6px; background: #3b82f6; color: #fff; font-weight: 600; cursor: pointer; font-size: 13px; }
+    button.secondary { background: transparent; border: 1px solid #27272a; color: #f8f9fa; margin-top: 8px; }
+    .status { font-size: 12px; color: #a1a1aa; margin-top: 12px; min-height: 16px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; }
+    .muted { color: #71717a; font-size: 11px; }
+    a { color: #3b82f6; }
+  </style>
+</head>
+<body>
+  <div class="head">
+    <div class="dot"></div>
+    <b>EVERKIN</b>
+  </div>
+  <div class="body">
+    <div id="setup">
+      <label>Backend URL</label>
+      <input id="backend" placeholder="https://your-app.preview.emergentagent.com" />
+      <label>Access token</label>
+      <input id="token" placeholder="Paste token from Everkin web app" />
+      <button id="save">Connect</button>
+      <p class="muted" style="margin-top:12px">Copy your token from the web app: open DevTools → Application → Local Storage → <code>vault_token</code>.</p>
+    </div>
+    <div id="connected" style="display:none">
+      <p class="muted">Connected as <span id="who"></span></p>
+      <button id="fill">Auto-fill this page</button>
+      <button id="disconnect" class="secondary">Disconnect</button>
+    </div>
+    <div class="status" id="status"></div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

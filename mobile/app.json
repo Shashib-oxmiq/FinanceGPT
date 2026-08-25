@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "Everkin",
+    "slug": "everkin",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "everkin",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#09090b",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.everkin.app"
+    },
+    "android": {
+      "package": "com.everkin.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#09090b"
+      }
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}

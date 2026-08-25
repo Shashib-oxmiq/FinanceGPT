@@ -1,0 +1,125 @@
+{
+  "summary": "First full test pass of VaultKin (FastAPI + React + Mongo + Emergent LLM/object-storage). Backend: created /app/backend/tests/backend_test.py (42 pytest cases) covering health, email/password auth (register/login/me/logout/dup/short-pw/invalid-token), profile GET/PUT/extract, SSE chat streaming for BOTH claude and gemini with persistence, insurance CRUD + AI review, document upload/list/download(Bearer + ?auth)/soft-delete, form filler, bundle suggest + zip create, legacy contacts/pack/export zip (with & without documents), dashboard stats and cross-tenant isolation -- 42/42 PASS. Added /app/backend/tests/test_security.py (4 cases) -> 2 PASS, 2 FAIL revealing real gaps (expired session still authorises document download; no login brute-force lockout). Frontend: full E2E via Playwright on the public preview URL -- unauth redirects, UI register/login/logout, all 7 nav routes, profile save+persist, insurance add + AI review (health_score 28/100 with real gaps/recs/corner-cases), vault upload/list/delete, form filler mapping real profile values with confidence labels, bundler suggest (19-item H1B checklist) + zip download, legacy contact + handover pack zip download, Claude & Gemini streaming chat, profile extraction from chat (passport P9988776 persisted), theme toggle, mobile drawer. All core flows work. 2 responsive defects + 1 testability + 1 security-smell found in UI.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "GET /api/documents/{id}/download",
+        "issue": "Expired session tokens are still accepted. routes.py user_from_token() only does db.user_sessions.find_one({session_token}) and never checks expires_at (unlike deps.get_current_user). Reproduced: set a session's expires_at to yesterday -> /api/auth/me correctly returns 401 but the download endpoint returns 200 with the full document bytes. Any leaked/old token grants permanent access to private documents.",
+        "priority": "CRITICAL"
+      },
+      {
+        "endpoint": "POST /api/auth/login",
+        "issue": "No brute-force protection. 8 consecutive wrong-password attempts all returned 401 with no lockout/rate limit (playbook requires lockout after 5 failures; expected 423/429). No failed_attempts counter or locked_until field exists on the users document.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "POST /api/documents/upload, GET /api/documents/{id}/download, POST /api/bundle/create, POST /api/legacy/export",
+        "issue": "storage.py uses the blocking `requests` library (put_object/get_object/init_storage) inside async def endpoints. Every upload/download/zip build blocks the FastAPI event loop for the whole object-store round trip; /legacy/export loops over ALL documents synchronously. Use httpx.AsyncClient or starlette.concurrency.run_in_threadpool."
+      },
+      {
+        "endpoint": "PUT /api/insurance/{policy_id}",
+        "issue": "Full-document replace: InsuranceBody defaults every optional field to \"\", so a partial update payload silently wipes previously saved fields (nominee, claim_contact, riders...). Should use exclude_unset=True on model_dump()."
+      },
+      {
+        "endpoint": "POST /api/chat/conversations/{id}/message",
+        "issue": "If the LLM stream raises, the error is emitted as an SSE event but an assistant message with content=\"\" is still persisted to db.messages, leaving an empty bubble in history forever. Skip the insert when full == \"\"."
+      },
+      {
+        "endpoint": "GET /api/documents/categories",
+        "issue": "Unauthenticated (no Depends(get_current_user)) while every other /api route is protected - inconsistent, though only static metadata is exposed."
+      },
+      {
+        "endpoint": "server.py",
+        "issue": "Uses deprecated @app.on_event(\"startup\"/\"shutdown\") instead of the lifespan handler, and shutdown() contains dead code `db.client if False else None` (Mongo client is never closed)."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Chat.jsx",
+        "issue": "Chat composer is cut off below the fold on mobile. Root div uses h-[calc(100vh)] but on <md it renders inside <main> underneath Layout's 56px sticky header, so total page height is 900px in an 844px viewport. Measured: chat-input bounding box y=838 h=46 (bottom=884) vs innerHeight=844 -> send button/textarea partially unreachable without scrolling. Fix: h-[calc(100vh-3.5rem)] md:h-screen.",
+        "selector": "[data-testid=\"chat-input\"]",
+        "priority": "HIGH"
+      },
+      {
+        "component": "Chat.jsx",
+        "issue": "Conversation sidebar is `hidden lg:flex`, so at <1024px (all mobile AND tablet 768px) 'New chat', the conversation list and per-conversation delete are completely inaccessible. Verified new-conversation is_visible()==False at both 390px and 768px. Users can only ever use the single auto-created conversation on tablet/mobile.",
+        "selector": "[data-testid=\"new-conversation\"]",
+        "priority": "HIGH"
+      },
+      {
+        "component": "Vault.jsx",
+        "issue": "Document 'Open' uses window.open(`${API}/documents/{id}/download?auth=<session_token>`). (a) The popup never opened in automated Chrome (popup-blocked; 0 popups captured after the click) so the button appears dead, and (b) it puts the full session token in a URL -> leaks into browser history, referrer and any proxy logs. Bundler.jsx and Legacy.jsx already do this correctly with fetch + Authorization header + blob URL; reuse that. (Backend endpoint itself verified working: 200 + exact bytes.)",
+        "selector": "[data-testid^=\"download-\"]",
+        "priority": "MEDIUM"
+      },
+      {
+        "component": "Layout.jsx",
+        "issue": "SidebarInner is rendered twice (desktop <aside> + mobile drawer), duplicating every data-testid: nav-dashboard/nav-chat/.../nav-legacy, brand-logo, theme-toggle, logout-button, download-extension each resolve to 2 nodes. Playwright strict mode fails and `.first` silently targets the hidden desktop copy. Suffix the mobile copy (e.g. nav-vault-mobile) or lift the sidebar to a single instance.",
+        "selector": "[data-testid=\"nav-vault\"]",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Chat -> Save to profile (extract)",
+        "issue": "Extraction works and persists correctly (passport P9988776 + Stanford landed in the profile), but no toast was observed in the DOM after clicking. toast.promise with a ~15s LLM call gives no visible pending indicator on the button itself, so the action looks like a no-op. Add a busy/disabled state on the extract-profile button.",
+        "affected_selectors": ["[data-testid=\"extract-profile\"]"]
+      },
+      {
+        "flow": "Bundler -> suggest then select",
+        "issue": "After 'Suggest documents' the app silently pre-selects all documents in recommended categories. Nothing in the suggestion panel says selections changed, so a user clicking a doc row to 'pick' it actually DESELECTS it and then gets 'Select at least one document'. Add a 'N documents auto-selected' hint near the checklist.",
+        "affected_selectors": ["[data-testid=\"suggestion-panel\"]", "[data-testid^=\"select-doc-\"]"]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "Chat (mobile 390x844)",
+        "issues": ["Page header 'AI Advisor' + 'Financial · Insurance · Legacy planning' + model select + 'Save to profile' all crammed into a 64px row; the subtitle wraps to two lines and collides with the model dropdown", "Composer clipped at the bottom edge (see ui_bugs)"]
+      },
+      {
+        "screen": "General",
+        "issues": ["Light and dark themes both verified readable (contrast OK on dashboard/vault/insurance/forms); no horizontal overflow at 390px; images used (Unsplash finance/network art) are relevant to the product"]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_security.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "CRITICAL: enforce expires_at in routes.py user_from_token() (or reuse deps.get_current_user logic) - expired session tokens can still download private documents",
+    "HIGH: add login brute-force lockout/rate limit (>=5 failed attempts -> 423/429) on POST /api/auth/login",
+    "HIGH: fix Chat.jsx height (h-[calc(100vh-3.5rem)] md:h-screen) so the composer is not clipped on mobile",
+    "HIGH: make the Chat conversation sidebar reachable below 1024px (drawer/sheet or md:flex) - New chat is unusable on tablet & mobile",
+    "MEDIUM: switch Vault 'Open' from window.open(?auth=token) to fetch + Authorization header + blob URL (matches Bundler/Legacy); stop putting the session token in a URL",
+    "MEDIUM: de-duplicate data-testid values produced by rendering Layout's SidebarInner twice",
+    "MEDIUM: replace blocking `requests` calls in storage.py with an async client (or run_in_threadpool) - uploads/downloads/zip builds currently block the event loop",
+    "LOW: PUT /api/insurance uses model_dump() (full replace) and wipes unset fields; use exclude_unset=True",
+    "LOW: do not persist an empty assistant message when the chat stream errors",
+    "LOW: add a busy state to the chat 'Save to profile' button and an auto-selection hint in Bundler"
+  ],
+  "critical_code_review_comments": [
+    "routes.py:23 user_from_token() is a second, weaker copy of deps.get_current_user - it omits the expires_at check and returns only user_id. Consolidate into one helper that accepts cookie/Bearer/query token so auth rules cannot drift (this drift is exactly what caused the expired-token download hole).",
+    "storage.py performs synchronous HTTP (requests.put/get) from inside async endpoints; /api/legacy/export additionally fetches every document serially in one request - a user with many files will stall the whole worker.",
+    "auth.py has no failed-login accounting; add failed_attempts/locked_until on the users doc or an IP-based limiter before login is exposed publicly.",
+    "Chat.jsx send(): res.ok is never checked before res.body.getReader(); a 401/404/500 is silently parsed as an empty stream and the user sees an empty assistant bubble with no error.",
+    "Insurance/Legacy modals are custom fixed-overlay divs closed by a backdrop click with no Escape key handler, no focus trap and no role=\"dialog\"/aria-modal - keyboard and screen-reader users cannot dismiss them.",
+    "server.py shutdown() contains dead code (`db.client if False else None`) and never closes the Motor client; startup/shutdown should move to the lifespan API."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_security.py"
+  ],
+  "success_rate": {"backend": "96% (44/46: 42/42 functional, 2/4 security)", "frontend": "88% (all 10 core flows pass; 4 UI/responsive/testability defects)"},
+  "seed_data_creation": "Registered throwaway users test_*@example.com (pytest) and ui_/ui2_/ui3_/ui4_/ui5_<epoch>@example.com (Playwright), each with a TEST_ prefixed profile, 1-2 TEST_*.txt documents, TEST insurance policies and a 'TEST Spouse' legacy contact. pytest fixtures clean up their own documents/policies/conversations; the Playwright users and their uploads remain in test_database and can be dropped by email prefix (ui*@example.com, test_*@example.com). Pre-existing demo@example.com / demo123 was used read-only and not modified.",
+  "should_call_test_agent_after_fix": true,
+  "should_main_agent_self_test": false,
+  "test_credentials": "demo@example.com / demo123 (verified working, bcrypt hash starts with $2b$). Fresh users can be registered freely via POST /api/auth/register.",
+  "context_for_next_testing_agent": "Run backend with `cd /app/backend && python -m pytest tests/ -n 0 -v` -- IMPORTANT: use -n 0. pytest.ini forces `-n 2 --dist loadscope`, and backend_test.py deliberately shares one session-scoped registered user across classes (TestForms depends on TestProfile's saved profile, TestBundle on TestDocuments' upload, TestLegacy on TestInsurance), so parallel loadscope splits break it. Real LLM calls are used: chat/review/extract/forms/bundle each take 5-60s, so keep timeouts >=180s. test_security.py encodes the two known open defects - test_expired_session_rejected_on_document_download and test_login_brute_force_lockout should flip to PASS once fixed. Playwright notes: [data-testid=\"form-preview\"] is the always-present panel, wait on [data-testid=\"filled-field-0\"] instead; Layout renders duplicate nav-*/theme-toggle/logout-button testids so use .nth(1) for the mobile drawer copy; the Bundler auto-selects recommended docs after suggest so read the 'N documents selected' text before clicking a doc row; Vault 'Open' uses window.open which is popup-blocked in headless (verify the download via page.request.get on /api/documents/{id}/download?auth=<token> instead).",
+  "rca_of_the_issue": "Expired-token download hole: routes.py defines its own token resolver user_from_token() so that /documents/{id}/download can accept the token from a ?auth= query string (needed because window.open cannot set headers). That copy only looks the session up by session_token and returns session['user_id'] - it never compares expires_at against now, which deps.get_current_user does. Repro: register -> upload a doc -> db.user_sessions.update_one({session_token}, {$set:{expires_at: yesterday}}) -> GET /api/auth/me = 401 but GET /api/documents/{id}/download?auth=<token> = 200 with the file bytes. Fix: extract one shared resolver that accepts cookie/Bearer/query token and always validates expires_at; the cleanest mitigation is to drop the ?auth= path entirely and have Vault.jsx fetch the blob with the Authorization header like Bundler.jsx/Legacy.jsx already do, which also removes the token-in-URL leak. Login brute force: auth.py login() has no attempt accounting at all, so 8 wrong passwords returned 8x401; add failed_attempts/locked_until to the users document (or an IP limiter) returning 423/429 after 5 failures."
+}

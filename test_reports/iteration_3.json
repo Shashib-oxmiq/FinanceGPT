@@ -1,0 +1,34 @@
+{
+  "summary": "Iteration 3 — FRONTEND-ONLY regression on the public preview URL after the Everkin rebrand, chat attachments, mobile chat redesign, portal modals and chat inline error handling. Ran 3 Playwright suites (desktop 1920x1080 x2, mobile 390x844 x1) covering: login, dashboard, all 8 sidebar routes, insurance CRUD + portal modal geometry, legacy CRUD + portal modal, vault upload/open/delete, form filler generation, bundler suggest + zip download, chat streaming, chat attachment -> Gemini round-trip, mobile drawer/-m testids, duplicate-testid scan, horizontal overflow. RESULT: every requested flow PASSED. Both previously reported iteration-2 frontend bugs are CONFIRMED FIXED: (1) attachments now auto-route to Gemini and the assistant correctly read 'EVK-7731' out of the uploaded .txt on the DEFAULT Claude selection; (2) the portal-based Modal now renders against the viewport on mobile (policy-form box y=48, height 759 inside 844 viewport; modal-close visible at y=73; submit reachable) instead of the previous y=-126 clipping. Branding shows EVERKIN in desktop sidebar and mobile header with zero VAULTKIN occurrences. No duplicate data-testids with the mobile drawer open (nav-*-m / new-conversation-m suffixes work). No JS console errors during any authenticated flow (only two benign 401s from the pre-login /auth/me probe on the login page). No backend testing was performed (explicitly out of scope this run).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Insurance add/edit policy modal",
+        "issues": [
+          "'Start date' and 'Maturity date' are plain free-text <input> fields (Insurance.jsx L127-128) with no type=date, no date picker, no placeholder/format hint and no validation — users can persist arbitrary strings that later render verbatim on the policy card ('Maturity' row). Suggest a shadcn calendar/date component or at minimum a YYYY-MM-DD placeholder + validation."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "OPTIONAL (low): Vault 'Open' (Vault.jsx download()) calls window.open(blobUrl,'_blank') AFTER an awaited fetch, so it is outside the user-gesture window and can be silently swallowed by popup blockers (no popup/new page was observed in the headless run; only a toast-free no-op). Prefer an anchor with download attribute + programmatic click, or open the tab synchronously and then set location.",
+    "OPTIONAL (low): Chat.jsx L135-142 post-stream cleanup sets the last assistant bubble content to \"\" when the stream ends with no delta and no explicit error event — that path still leaves a blank assistant bubble in the transcript. Use the same inline notice for the 'empty, not errored' case so there is never a silent blank reply.",
+    "OPTIONAL (low): Insurance date fields — replace free-text date inputs with a proper date component/validation."
+  ],
+  "critical_code_review_comments": [
+    "Chat.jsx send(): mount-time loadConvos() auto-selects conversations[0] and its awaited setMessages can resolve after a fast newConvo() click, which would repaint a fresh conversation with the previous conversation's transcript. Attempted deterministic repro (click new-conversation immediately on route entry) returned 0 stale bubbles, so it did not reproduce, but a request-id/activeId guard inside selectConvo would remove the race entirely.",
+    "Modal.jsx correctly portals to document.body, restores body overflow on unmount and handles Escape — good. Only gap: focus is not trapped/returned to the trigger, and the panel is not focused on open (a11y)."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "not tested (out of scope)", "frontend": "100% (all 9 requested flows pass)" },
+  "seed_data_creation": "Transient only, all cleaned up: insurance policies 'TEST_Provider_QA' and 'TEST_MobProv' (created+deleted), next-of-kin 'TEST_Kin_QA' (created+deleted), vault uploads of /app/test_reports/qa_attach.txt (created+deleted), form-fill 'TEST_QA Form', bundle 'TEST_QA_Bundle.zip', and 3 short chat conversations left on demo@example.com.",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "demo@example.com / demo123 — valid, logs in and lands on /dashboard. /app/memory/test_credentials.md is present but still titled 'VaultKin' and should be updated to Everkin.",
+  "context_for_next_testing_agent": "Web frontend is green as of iteration 3. Helper fixture file kept at /app/test_reports/qa_attach.txt (contains 'ACCOUNT CODE: EVK-7731') for re-testing chat/vault uploads. Chat LLM replies take 5-30s: poll [data-testid=message-assistant] until [data-testid=chat-send] is re-enabled. Bundler zip and handover zip arrive as Playwright 'download' events. Mobile drawer testids are suffixed '-m' (nav-chat-m, new-conversation-m). Insurance/Legacy modals are portaled to document.body so bounding_box() is viewport-relative. Remaining untested areas: Profile page edit/save, insurance AI Review, legacy handover 'Summary only' export, Landing/Register pages, dark/light theme toggle persistence, and all backend endpoints (skipped this run).",
+  "rca_of_the_issue": "N/A — no failures reproduced. Iteration-2 root causes were (a) frontend defaulting to claude for attachment messages (now fixed by useModel='gemini' when attachments.length in Chat.jsx L87) and (b) the modal overlay being fixed-positioned inside a transformed/animated ancestor (now fixed by createPortal to document.body in components/Modal.jsx)."
+}

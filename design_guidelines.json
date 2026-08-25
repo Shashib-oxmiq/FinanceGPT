@@ -1,0 +1,96 @@
+{
+  "theme": "light_dark_toggle",
+  "typography": {
+    "headings": "Chivo",
+    "body": "IBM Plex Sans",
+    "hierarchy": {
+      "h1": "text-4xl sm:text-5xl lg:text-6xl tracking-tight leading-none font-black",
+      "h2": "text-2xl sm:text-3xl lg:text-4xl tracking-tight",
+      "h3": "text-xl sm:text-2xl",
+      "h4": "text-lg sm:text-xl",
+      "body": "text-base leading-relaxed",
+      "labels": "text-xs tracking-[0.2em] uppercase"
+    },
+    "instructions": "Use Chivo for all headings to ensure a structured, authoritative, yet modern SaaS feel. IBM Plex Sans for body text to ensure extreme legibility and technical clarity. Never use Inter or Space Grotesk. Rotate through weights intelligently (Light vs Black) for contrast."
+  },
+  "colors": {
+    "archetype": "ARCHETYPE 4: SWISS & HIGH-CONTRAST (Authority, Clarity, Truth)",
+    "light": {
+      "background": "#FFFFFF",
+      "surface": "#F5F5F5",
+      "primary": "#0047AB",
+      "accent": "#10B981",
+      "warning": "#F59E0B",
+      "text": "#0A0A0A",
+      "border": "#E5E7EB"
+    },
+    "dark": {
+      "background": "#09090B",
+      "surface": "#121212",
+      "primary": "#3B82F6",
+      "accent": "#10B981",
+      "warning": "#F59E0B",
+      "text": "#F8F9FA",
+      "border": "#27272A"
+    },
+    "instructions": "Tint neutral greys slightly with blue to make them feel alive. Use pure white or deep void black for backgrounds. Color is function only; 95% of the UI should be monochrome, with Primary Blue reserved purely for actions and Trust signals. DO NOT use teal green (#1B93A4) or #7351B7."
+  },
+  "visual_enhancers": {
+    "surfaces": "Use 'Glassmorphism' (Crystal Variant) for floating Navs and Chat headers: backdrop-blur-xl with high saturation. Dashboard Cards must use 'Grid Borders' (The Technical Look): border-collapse style layout, 1px subtle borders on right and bottom, no shadows by default.",
+    "motion": "Hover states must explicitly set text color. Add subtle translation (-translate-y-1) for document cards. Ensure a staggered entrance animation for vault lists."
+  },
+  "grids": "High Density Grid (MODE B) for Dashboard. Base Grid: grid-cols-1 md:grid-cols-3 lg:grid-cols-4. Gap Strategy: gap-4 or gap-6. Span Logic: Summary (col-span-1), Primary Data (col-span-2 or 3), Feed/List (col-span-1 row-span-2). Every pixel must be utilized. Use h-full on children.",
+  "layouts": {
+    "dashboard": "3-column Bento layout. Left Sidebar: Navigation & Bundler context. Middle: AI Chat (The core driver). Right: Contextual Document Preview / Vault summary.",
+    "spacing": "Generous Spacing Philosophy. Use p-6 or p-8 inside bordered containers. Add extra optical padding for asymmetrical icons.",
+    "alignment": "Left-align paragraphs, labels, dense content. Mobile-first grids. Override default stretch with align-items: start."
+  },
+  "components": [
+    {
+      "name": "ChatInterface",
+      "instructions": "The core AI interaction. Must feel like a premium command center. Use Shadcn components for inputs and scroll areas, customized with tight spacing and border grid style."
+    },
+    {
+      "name": "DocumentVault",
+      "instructions": "Use cardless, dense styles for document lists. 1px borders. No soft shadows. Highlight document status (Verified/Missing) using Accent Green or Warning Yellow."
+    },
+    {
+      "name": "FormFillerPreview",
+      "instructions": "Display digital copy of forms with a split-screen layout. Left: AI reasoning/extraction, Right: Form visual."
+    }
+  ],
+  "component_path": "/app/frontend/src/components/ui",
+  "accessibility": {
+    "contrast": "APCA contrast minimums. Normal text > 4.5:1. Interactive > 3:1.",
+    "testing": "All interactive and key informational elements MUST include `data-testid` attribute (e.g., data-testid='upload-document-button', data-testid='chat-submit').",
+    "motion": "Respect prefers-reduced-motion. Focus states must have HIGHER contrast than default state."
+  },
+  "media": {
+    "icons": "Use @phosphor-icons/react (Duotone weight) for a premium tech look. Avoid generic AI emojis."
+  },
+  "image_urls": [
+    {
+      "url": "https://images.pexels.com/photos/8371715/pexels-photo-8371715.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "category": "empty_state",
+      "description": "Use as a background or side illustration for the empty state of the Document Vault or Onboarding screen."
+    }
+  ],
+  "3d_libraries": {
+    "library": "TSParticles",
+    "instructions": "Use TSParticles for a subtle floating mesh network background in the login/auth screen to signify secure connectivity without heavy rendering overhead."
+  },
+  "instructions_to_main_agent": "Implement the frontend based on the strict Anti-AI Designer principles. Build pure HTML/Tailwind layouts for structural components and use Shadcn only for interactive logic (Forms, Modals). Strip standard 'Vercel-looks' via Tailwind styling. Follow the spacing scales and typography guidelines exactly. For icons, run: `yarn add @phosphor-icons/react`.",
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "You MUST NOT apply universal transition. Eg: transition: all. Always add transitions for specific interactive elements.",
+    "You MUST NOT center align the app container. No .App { text-align: center; }.",
+    "Always use modern button styles (sharp corners or slight pill, interaction animations).",
+    "NEVER use AI assistant Emoji characters like 🤖🧠💭💡.",
+    "Every interaction needs micro-animations (hover states, focus rings).",
+    "Use 2-3x more spacing than feels comfortable.",
+    "Do NOT use complete transparent backgrounds for overlays or headers.",
+    "Use Phosphor icons. Command: yarn add @phosphor-icons/react.",
+    "Use sonner for toasts.",
+    "All interactive elements MUST include data-testid attribute."
+  ],
+  "GENERAL_UI_UX_DESIGN_GUIDELINES": "Implement the 'Role-Metric-Density-Action' framework. The primary view must immediately show profile completeness and active AI chat. Use tabular figures for numerical data. Friction is a design asset here: use it to confirm Document Bundling and Vault deletions. Trust is built through structural honesty: clear error messaging, secure presigned URL usage, and transparent file previews."
+}

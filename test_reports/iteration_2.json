@@ -1,0 +1,51 @@
+{
+  "summary": "Iteration 2 full backend + frontend E2E. Backend: 53 tests run (42 regression in backend_test.py all PASS, 4 security PASS, 7 new iteration-2 tests: 5 PASS / 2 FAIL). Both iteration-1 security holes are CONFIRMED FIXED (expired session now 401 on document download via both Bearer and ?auth=, and login lockout returns 423 on 5th failure incl. correct-password-while-locked). Two real bugs found: (1) CRITICAL chat file attachments fail with the DEFAULT claude model ('File attachments are only supported with Gemini provider') - they only work when model=gemini; (2) HIGH PUT /api/insurance/{id} partial update returns 422 because InsuranceBody still requires policy_type+provider, so exclude_unset can never be exercised. Frontend desktop 1920: login, all 8 nav routes, chat streaming, insurance add, vault upload/open/delete, form generation, bundler suggest+create, next-of-kin add + handover zip export all PASS. Mobile 390: composer (chat-input/chat-send/chat-attach) fully within viewport, conversation drawer opens via open-convos and auto-closes, chat streaming works, no horizontal overflow. Fixed duplicate data-testids in Chat.jsx (mobile drawer copies now suffixed '-m' matching Layout).",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/chat/conversations/{id}/message (attachments)", "issue": "With model='claude' (the frontend DEFAULT) any attachment makes the stream emit {\"error\":\"File attachments are only supported with Gemini provider\"} and no assistant reply is produced. Verified working only with model='gemini' (correctly read 'GEM-9902' from the attached txt). The headline new feature is therefore broken out-of-the-box. Fix: either force/route attachment messages to gemini, or disable/warn in the model selector when attachments are present.", "priority": "CRITICAL"}
+    ],
+    "minor": [
+      {"endpoint": "PUT /api/insurance/{policy_id}", "issue": "Partial update {provider:'X'} -> 422 'policy_type Field required'. routes_legacy.update_insurance uses model_dump(exclude_unset=True) but reuses InsuranceBody whose policy_type/provider are required. Needs a separate InsuranceUpdate model with all Optional fields (priority HIGH)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Chat.jsx", "issue": "When the stream returns an error (e.g. claude+attachment), an EMPTY assistant bubble is left rendered in the transcript and the only feedback is a transient sonner toast; after the toast expires the user just sees a blank reply with no retry affordance.", "selector": "[data-testid=message-assistant]", "priority": "HIGH"},
+      {"component": "Insurance.jsx add-policy modal (mobile 390x844)", "issue": "Modal panel bounding box y = -126px: its top (title + close X) is clipped above the viewport and [data-testid=submit-policy] sits at y~1047 (off-screen) until the user scrolls inside the modal. The fixed inset-0 overlay appears to be positioned against a transformed/animated ancestor rather than the viewport. Save still works after in-modal scroll, but the header/close button is unreachable.", "selector": "[data-testid=policy-form]", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [
+      {"flow": "Chat attachment send (desktop + mobile)", "issue": "Attachment chip uploads fine (POST /api/chat/upload 200) but the reply never arrives with the default Claude model; page shows an empty assistant bubble. Same root cause as the backend CRITICAL item.", "affected_selectors": ["[data-testid=chat-attach]", "[data-testid=attachment-chips]", "[data-testid=message-assistant]"]}
+    ],
+    "design_issues": [
+      {"screen": "Insurance (mobile 390)", "issues": ["Add-policy modal top clipped off-screen; primary Save action below the fold until in-modal scroll"]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration2.py",
+    "/app/backend/tests/test_iteration2b.py",
+    "/app/backend/tests/test_security.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/it2_focus.xml",
+    "/app/test_reports/pytest/it2_regression.xml"
+  ],
+  "action_items": [
+    "CRITICAL: make chat attachments work with the default model - route attachment-bearing messages to gemini in routes.send_message (or auto-switch/disable claude in Chat.jsx model-select when attachments exist) so the new feature works without the user manually picking Gemini.",
+    "HIGH: add an InsuranceUpdate pydantic model with every field Optional for PUT /api/insurance/{id}; current partial update 422s (test_partial_update_preserves_unset_fields).",
+    "MEDIUM: surface stream errors inline in the chat transcript instead of a transient toast, and drop/replace the empty assistant bubble.",
+    "MEDIUM: fix Insurance add-policy modal positioning on 390px (top clipped, Save below fold) - check for a transformed ancestor breaking position:fixed."
+  ],
+  "critical_code_review_comments": [
+    "routes.py send_message silently swallows attachment-load failures (except: continue) AND the provider incompatibility only shows up as a stream error - validate provider/attachment compatibility up front and return 400 with a clear message.",
+    "ai.make_file_content writes every non-image attachment to a NamedTemporaryFile with delete=False and never cleans it up -> unbounded /tmp growth.",
+    "routes_legacy.InsuranceBody is reused for both create and update; split create/update schemas (root cause of the 422 on partial update).",
+    "Chat.jsx rendered the conversation list twice with identical data-testids (fixed here with the '-m' suffix convention used in Layout.jsx)."
+  ],
+  "updated_files": ["/app/frontend/src/pages/Chat.jsx", "/app/backend/tests/test_iteration2.py", "/app/backend/tests/test_iteration2b.py"],
+  "success_rate": {"backend": "96% (51/53)", "frontend": "90% (all desktop + mobile flows pass except chat attachments)"},
+  "seed_data_creation": "Throwaway users test_it2_*/test_it2b_*/test_exp_*/test_lock_*@example.com (registered by tests, deleted in teardown). Demo user test artifacts (TEST QA Insurer / TEST Mobile Insurer policies, qa_doc/qa_blob vault docs, TEST QA Kin contact) were created and cleaned up via the UI.",
+  "should_call_test_agent_after_fix": true,
+  "should_main_agent_self_test": false,
+  "test_credentials": "demo@example.com / demo123 (not brute-forced; lockout tests used throwaway users)",
+  "context_for_next_testing_agent": "Run backend with: cd /app/backend && python -m pytest tests/ -n 0 -v (real LLM calls, ~2min for backend_test.py). test_iteration2.py::TestChatAttachments::test_upload_and_message_with_attachment and TestInsurancePartialUpdate::test_partial_update_preserves_unset_fields are the two expected-to-fail-until-fixed tests; test_iteration2b.py proves attachments work with model=gemini and that no empty assistant message is persisted on stream error. Chat.jsx mobile drawer testids are now new-conversation-m / convo-{id}-m; Layout mobile drawer uses nav-*-m. Desktop flows all verified working; re-verify only chat attachments + insurance PUT + mobile insurance modal after fixes.",
+  "rca_of_the_issue": "Attachments: ai.make_file_content builds FileContentWithMimeType/ImageContent and routes.send_message passes them to whatever model the client picked; the emergentintegrations Anthropic path rejects file_contents ('File attachments are only supported with Gemini provider'), and Chat.jsx defaults model state to 'claude', so the default UX always fails. Insurance PUT: exclude_unset=True is applied to InsuranceBody, but pydantic validation runs before that and policy_type/provider are non-Optional, so a partial payload never reaches the handler (422)."
+}

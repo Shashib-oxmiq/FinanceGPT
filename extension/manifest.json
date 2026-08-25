@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Everkin Auto-Fill",
+  "version": "1.0.0",
+  "description": "Intelligently auto-fills website and government forms using your secure Everkin profile.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["<all_urls>"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Everkin Auto-Fill"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
