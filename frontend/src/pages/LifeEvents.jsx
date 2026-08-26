@@ -5,7 +5,7 @@ import { Page, PageHeader } from "../components/Page";
 import { catLabel } from "../lib/categories";
 import {
   Confetti, House, Baby, Island, Heart, Briefcase, Flower, AirplaneTilt,
-  CheckCircle, WarningCircle, Package, Lightbulb, Sparkle, ArrowLeft,
+  CheckCircle, WarningCircle, Package, Lightbulb, Sparkle, ArrowLeft, BellRinging, BellSlash,
 } from "@phosphor-icons/react";
 
 const ICONS = {
@@ -34,10 +34,34 @@ export default function LifeEvents() {
   const [guide, setGuide] = useState(null);
   const [loading, setLoading] = useState(false);
   const [building, setBuilding] = useState(false);
+  const [tracked, setTracked] = useState([]);
 
   useEffect(() => {
     api.get("/life-events").then(({ data }) => setEvents(data.events)).catch(() => {});
+    api.get("/life-events/tracked").then(({ data }) => setTracked(data.map((t) => t.event))).catch(() => {});
   }, []);
+
+  const isTracked = active && tracked.includes(active.key);
+
+  const toggleTrack = async () => {
+    if (!active || !guide) return;
+    try {
+      if (isTracked) {
+        await api.delete(`/life-events/track/${active.key}`);
+        setTracked((t) => t.filter((k) => k !== active.key));
+        toast.success("Milestone reminder removed");
+      } else {
+        await api.post("/life-events/track", {
+          event: active.key,
+          title: guide.title,
+          checklist: guide.checklist,
+          recommended_categories: guide.recommended_categories,
+        });
+        setTracked((t) => [...t, active.key]);
+        toast.success("Tracking this milestone — we'll remind you");
+      }
+    } catch { toast.error("Could not update reminder"); }
+  };
 
   const openEvent = async (ev) => {
     setActive(ev);
@@ -113,10 +137,17 @@ export default function LifeEvents() {
             <div className="border border-border rounded-lg p-6 bg-card">
               <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
                 <h3 className="font-heading text-lg font-bold flex items-center gap-2"><CheckCircle size={18} weight="duotone" className="text-primary" /> Your checklist</h3>
-                <button onClick={buildBundle} disabled={building || (guide.have_document_ids || []).length === 0} data-testid="build-event-bundle"
-                  className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-md text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60">
-                  <Package size={16} weight="bold" /> {building ? "Building…" : `Build pack (${(guide.have_document_ids || []).length})`}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button onClick={toggleTrack} data-testid="track-milestone"
+                    className={`flex items-center gap-2 border px-4 py-2.5 rounded-md text-sm font-semibold transition-colors ${isTracked ? "border-primary text-primary bg-primary/10" : "border-border hover:bg-secondary"}`}>
+                    {isTracked ? <BellSlash size={16} weight="duotone" /> : <BellRinging size={16} weight="duotone" />}
+                    {isTracked ? "Tracking" : "Remind me"}
+                  </button>
+                  <button onClick={buildBundle} disabled={building || (guide.have_document_ids || []).length === 0} data-testid="build-event-bundle"
+                    className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-md text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60">
+                    <Package size={16} weight="bold" /> {building ? "Building…" : `Build pack (${(guide.have_document_ids || []).length})`}
+                  </button>
+                </div>
               </div>
               <ul className="space-y-3">
                 {(guide.checklist || []).map((item, i) => {

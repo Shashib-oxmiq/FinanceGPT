@@ -410,7 +410,9 @@ async def classify_document(data: bytes, filename: str, content_type: str):
         "category from this list: " + ", ".join(DOC_CATEGORIES) + ". "
         "Also extract key metadata. Return ONLY JSON: {\"category\": <one-of-the-list>, "
         "\"metadata\": {\"title\": str, \"doc_type\": str, \"issuer\": str, \"date\": str, "
-        "\"identifiers\": [str], \"summary\": str}}. Use empty strings/arrays when unknown."
+        "\"expiry_date\": str, \"identifiers\": [str], \"summary\": str}}. "
+        "For expiry_date, extract any expiry / valid-until / renewal / due date as ISO YYYY-MM-DD if present, else empty. "
+        "Use empty strings/arrays when unknown."
     )
     prompt = f"Filename: {filename}. Classify this document and extract metadata. Return the JSON now."
     try:
@@ -884,6 +886,139 @@ async def life_event_guide(body: LifeEventBody, user: dict = Depends(get_current
         "missing_categories": missing,
         "have_document_ids": have_ids,
     }
+
+
+class TrackEventBody(BaseModel):
+    event: str
+    title: str = ""
+    checklist: List[dict] = []
+    recommended_categories: List[str] = []
+
+
+@router.post("/life-events/track")
+async def track_life_event(body: TrackEventBody, user: dict = Depends(get_current_user)):
+    ev = LIFE_EVENTS.get(body.event)
+    if not ev:
+        raise HTTPException(status_code=404, detail="Unknown life event")
+    doc = {
+        "user_id": user["user_id"],
+        "event": body.event,
+        "title": body.title or ev["title"],
+        "checklist": body.checklist,
+        "recommended_categories": body.recommended_categories or ev["categories"],
+        "updated_at": now_iso(),
+    }
+    await db.life_event_trackers.update_one(
+        {"user_id": user["user_id"], "event": body.event},
+        {"$set": doc, "$setOnInsert": {"created_at": now_iso()}},
+        upsert=True,
+    )
+    return {"ok": True, **doc}
+
+
+@router.get("/life-events/tracked")
+async def tracked_life_events(user: dict = Depends(get_current_user)):
+    trackers = await db.life_event_trackers.find({"user_id": user["user_id"]}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    out = []
+    for t in trackers:
+        cats = t.get("recommended_categories", [])
+        have = await db.documents.distinct(
+            "category", {"user_id": user["user_id"], "is_deleted": False, "category": {"$in": cats}}
+        )
+        out.append({**t, "missing_categories": [c for c in cats if c not in have]})
+    return out
+
+
+@router.delete("/life-events/track/{event}")
+async def untrack_life_event(event: str, user: dict = Depends(get_current_user)):
+    await db.life_event_trackers.delete_one({"user_id": user["user_id"], "event": event})
+    return {"ok": True}
+
+
+# ---------------- Reminders ----------------
+def _parse_date(s):
+    if not s or not isinstance(s, str):
+        return None
+    s = s.strip()
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y", "%Y/%m/%d", "%d %b %Y", "%d %B %Y", "%b %d, %Y", "%B %d, %Y"):
+        try:
+            return datetime.strptime(s[:len(fmt) + 4], fmt).date()
+        except Exception:
+            continue
+    try:
+        return datetime.fromisoformat(s.replace("Z", "+00:00")).date()
+    except Exception:
+        return None
+
+
+@router.get("/reminders")
+async def get_reminders(window_days: int = 90, user: dict = Depends(get_current_user)):
+    today = datetime.now(timezone.utc).date()
+    items = []
+
+    # 1. Expiring documents (from extracted metadata)
+    docs = await db.documents.find(
+        {"user_id": user["user_id"], "is_deleted": False}, {"_id": 0, "storage_path": 0}
+    ).to_list(2000)
+    for d in docs:
+        exp = _parse_date((d.get("metadata") or {}).get("expiry_date"))
+        if not exp:
+            continue
+        days = (exp - today).days
+        if days <= window_days:
+            items.append({
+                "id": f"doc-{d['document_id']}",
+                "type": "document_expiry",
+                "title": f"{d['original_filename']} expires",
+                "detail": ("Expired" if days < 0 else f"Expires in {days} day{'s' if days != 1 else ''}") + f" · {exp.isoformat()}",
+                "due_date": exp.isoformat(),
+                "days": days,
+                "severity": "high" if days < 14 else "medium",
+                "link": "/vault",
+            })
+
+    # 2. Insurance renewals / maturity
+    policies = await db.insurance_policies.find({"user_id": user["user_id"]}, {"_id": 0}).to_list(500)
+    for p in policies:
+        mat = _parse_date(p.get("maturity_date"))
+        if not mat:
+            continue
+        days = (mat - today).days
+        if 0 <= days <= window_days or (days < 0 and days > -30):
+            items.append({
+                "id": f"ins-{p.get('policy_id')}",
+                "type": "insurance_renewal",
+                "title": f"{p.get('provider', 'Policy')} — {p.get('policy_type', '').replace('_', ' ')} matures",
+                "detail": (f"Due in {days} days" if days >= 0 else "Recently due") + f" · {mat.isoformat()}",
+                "due_date": mat.isoformat(),
+                "days": days,
+                "severity": "high" if days < 14 else "medium",
+                "link": "/insurance",
+            })
+
+    # 3. Tracked life-event milestones with missing documents
+    trackers = await db.life_event_trackers.find({"user_id": user["user_id"]}, {"_id": 0}).to_list(100)
+    for t in trackers:
+        cats = t.get("recommended_categories", [])
+        have = await db.documents.distinct(
+            "category", {"user_id": user["user_id"], "is_deleted": False, "category": {"$in": cats}}
+        )
+        missing = [c for c in cats if c not in have]
+        if missing:
+            items.append({
+                "id": f"life-{t['event']}",
+                "type": "milestone_task",
+                "title": f"{t.get('title', 'Milestone')} — {len(missing)} document{'s' if len(missing) != 1 else ''} still needed",
+                "detail": "Missing: " + ", ".join(missing[:6]) + ("…" if len(missing) > 6 else ""),
+                "due_date": None,
+                "days": 9999,
+                "severity": "low",
+                "link": "/life-events",
+            })
+
+    order = {"high": 0, "medium": 1, "low": 2}
+    items.sort(key=lambda x: (order.get(x["severity"], 3), x.get("days", 9999)))
+    return {"count": len(items), "reminders": items}
 
 
 # ---------------- Dashboard ----------------

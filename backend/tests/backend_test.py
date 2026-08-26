@@ -17,8 +17,8 @@ if not base_url:
 BASE_URL = base_url.rstrip("/")
 API = BASE_URL + "/api"
 
-DEMO_EMAIL = "demo@example.com"
-DEMO_PASSWORD = "demo123"
+DEMO_EMAIL = os.environ.get("DEMO_EMAIL", "demo@example.com")
+DEMO_PASSWORD = os.environ.get("DEMO_PASSWORD", "demo123")
 
 
 # ---------------- fixtures ----------------

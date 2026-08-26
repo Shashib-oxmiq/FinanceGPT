@@ -11,6 +11,7 @@ from routes import router as api_router
 from routes_legacy import router as legacy_router
 from routes_share import router as share_router
 from routes_voice import router as voice_router
+from routes_gmail import router as gmail_router
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -22,6 +23,7 @@ app.include_router(api_router)
 app.include_router(legacy_router)
 app.include_router(share_router)
 app.include_router(voice_router)
+app.include_router(gmail_router)
 
 cors_origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()]
 app.add_middleware(

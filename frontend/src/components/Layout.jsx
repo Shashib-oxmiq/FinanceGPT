@@ -1,13 +1,15 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import { api } from "../lib/api";
 import {
   House, ChatCircleText, IdentificationCard, ShieldCheck, Vault as VaultIcon,
-  FileText, Package, HandHeart, SignOut, Sun, MoonStars, List, X, PuzzlePiece, ChartLineUp, TrendUp, Bank, Confetti,
+  FileText, Package, HandHeart, SignOut, Sun, MoonStars, List, X, PuzzlePiece, ChartLineUp, TrendUp, Bank, Confetti, Bell, EnvelopeSimple,
 } from "@phosphor-icons/react";
 
 const NAV = [
   { to: "/dashboard", label: "Overview", icon: House },
+  { to: "/reminders", label: "Reminders", icon: Bell, badge: true },
   { to: "/chat", label: "AI Advisor", icon: ChatCircleText },
   { to: "/insights", label: "Money Insights", icon: ChartLineUp },
   { to: "/investments", label: "Investments", icon: TrendUp },
@@ -16,6 +18,7 @@ const NAV = [
   { to: "/profile", label: "Profile", icon: IdentificationCard },
   { to: "/insurance", label: "Insurance", icon: ShieldCheck },
   { to: "/vault", label: "Document Vault", icon: VaultIcon },
+  { to: "/gmail", label: "Import from Gmail", icon: EnvelopeSimple },
   { to: "/forms", label: "Form Filler", icon: FileText },
   { to: "/bundler", label: "Doc Bundler", icon: Package },
   { to: "/legacy", label: "Next-of-Kin", icon: HandHeart },
@@ -27,6 +30,11 @@ export default function Layout({ children }) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [dark, setDark] = useState(document.documentElement.classList.contains("dark"));
+  const [reminderCount, setReminderCount] = useState(0);
+
+  useEffect(() => {
+    api.get("/reminders").then(({ data }) => setReminderCount(data.count || 0)).catch(() => {});
+  }, [location.pathname]);
 
   const toggleTheme = () => {
     const el = document.documentElement;
@@ -72,7 +80,12 @@ export default function Layout({ children }) {
               }`}
             >
               <Icon size={20} weight={Active ? "fill" : "duotone"} />
-              {item.label}
+              <span className="flex-1">{item.label}</span>
+              {item.badge && reminderCount > 0 && (
+                <span data-testid={`reminder-badge${suffix}`} className="ml-auto text-[10px] font-bold bg-primary text-primary-foreground rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center">
+                  {reminderCount}
+                </span>
+              )}
             </Link>
           );
         })}
