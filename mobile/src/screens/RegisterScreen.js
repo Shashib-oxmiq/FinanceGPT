@@ -1,55 +1,49 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert, ScrollView } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { api, errMsg } from "../api";
-import { useAuth } from "../AuthContext";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
+import { useAuth } from "../contexts/AuthContext";
 import { theme } from "../theme";
-import { s } from "./LoginScreen";
 
 export default function RegisterScreen({ navigation }) {
-  const [name, setName] = useState("");
+  const { register } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [busy, setBusy] = useState(false);
-  const { login } = useAuth();
+  const [name, setName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const submit = async () => {
-    setBusy(true);
-    try {
-      const { data } = await api.post("/auth/register", { name: name.trim(), email: email.trim(), password });
-      await login(data);
-    } catch (e) {
-      Alert.alert("Sign up failed", errMsg(e.response?.data?.detail, e.message));
-    } finally {
-      setBusy(false);
-    }
+  const handleRegister = async () => {
+    setLoading(true); setError("");
+    try { await register(email, password, name); }
+    catch (e) { setError(e.message); }
+    finally { setLoading(false); }
   };
 
   return (
-    <KeyboardAvoidingView style={s.container} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
-        <View style={s.brand}>
-          <Ionicons name="shield-checkmark" size={28} color={theme.primary} />
-          <Text style={s.brandText}>EVERKIN</Text>
-        </View>
-        <Text style={s.title}>Create account</Text>
-        <Text style={s.subtitle}>Start building your secure vault</Text>
-
-        <Text style={s.label}>FULL NAME</Text>
-        <TextInput style={s.input} value={name} onChangeText={setName} placeholderTextColor={theme.muted} placeholder="Jane Doe" />
-        <Text style={s.label}>EMAIL</Text>
-        <TextInput style={s.input} autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} placeholderTextColor={theme.muted} placeholder="you@example.com" />
-        <Text style={s.label}>PASSWORD</Text>
-        <TextInput style={s.input} secureTextEntry value={password} onChangeText={setPassword} placeholderTextColor={theme.muted} placeholder="At least 6 characters" />
-
-        <TouchableOpacity style={s.btn} onPress={submit} disabled={busy}>
-          <Text style={s.btnText}>{busy ? "Creating…" : "Create account"}</Text>
+    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.container}>
+      <ScrollView contentContainerStyle={styles.scroll}>
+        <Text style={styles.title}>Create Account</Text>
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+        <TextInput style={styles.input} placeholder="Name" placeholderTextColor={theme.muted} value={name} onChangeText={setName} />
+        <TextInput style={styles.input} placeholder="Email" placeholderTextColor={theme.muted} value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
+        <TextInput style={styles.input} placeholder="Password" placeholderTextColor={theme.muted} value={password} onChangeText={setPassword} secureTextEntry />
+        <TouchableOpacity style={styles.button} onPress={handleRegister} disabled={loading}>
+          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Register</Text>}
         </TouchableOpacity>
-
-        <TouchableOpacity onPress={() => navigation.navigate("Login")} style={{ marginTop: 20 }}>
-          <Text style={s.link}>Already have an account? <Text style={{ color: theme.primary }}>Sign in</Text></Text>
+        <TouchableOpacity onPress={() => navigation.navigate("Login")}>
+          <Text style={styles.link}>Already have an account? Sign In</Text>
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: theme.background },
+  scroll: { flexGrow: 1, justifyContent: "center", padding: 24 },
+  title: { fontSize: 28, fontWeight: "800", color: theme.text, marginBottom: 24, textAlign: "center" },
+  input: { backgroundColor: theme.input, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: theme.text, marginBottom: 12, borderWidth: 1, borderColor: theme.border },
+  button: { backgroundColor: theme.primary, borderRadius: 12, paddingVertical: 14, alignItems: "center", marginBottom: 12 },
+  buttonText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  link: { color: theme.primary, textAlign: "center", fontSize: 14, marginTop: 8 },
+  error: { color: theme.destructive, fontSize: 14, marginBottom: 12, textAlign: "center" },
+});

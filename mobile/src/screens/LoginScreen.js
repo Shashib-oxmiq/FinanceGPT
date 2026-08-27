@@ -1,65 +1,59 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Alert, ScrollView } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { api, errMsg } from "../api";
-import { useAuth } from "../AuthContext";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
+import { useAuth } from "../contexts/AuthContext";
+import { useLanguage } from "../contexts/LanguageContext";
 import { theme } from "../theme";
 
 export default function LoginScreen({ navigation }) {
+  const { t } = useLanguage();
+  const { login, loginAsGuest } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [busy, setBusy] = useState(false);
-  const { login } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const submit = async () => {
-    setBusy(true);
-    try {
-      const { data } = await api.post("/auth/login", { email: email.trim(), password });
-      await login(data);
-    } catch (e) {
-      Alert.alert("Sign in failed", errMsg(e.response?.data?.detail, e.message));
-    } finally {
-      setBusy(false);
-    }
+  const handleLogin = async () => {
+    setLoading(true); setError("");
+    try { await login(email, password); }
+    catch (e) { setError(e.message); }
+    finally { setLoading(false); }
   };
 
   return (
-    <KeyboardAvoidingView style={s.container} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
-        <View style={s.brand}>
-          <Ionicons name="shield-checkmark" size={28} color={theme.primary} />
-          <Text style={s.brandText}>EVERKIN</Text>
+    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.container}>
+      <ScrollView contentContainerStyle={styles.scroll}>
+        <View style={styles.logo}>
+          <Text style={styles.logoText}>Everkin</Text>
+          <Text style={styles.tagline}>{t("app.tagline")}</Text>
         </View>
-        <Text style={s.title}>Sign in</Text>
-        <Text style={s.subtitle}>Access your secure financial vault</Text>
-
-        <Text style={s.label}>EMAIL</Text>
-        <TextInput style={s.input} autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} placeholderTextColor={theme.muted} placeholder="you@example.com" />
-        <Text style={s.label}>PASSWORD</Text>
-        <TextInput style={s.input} secureTextEntry value={password} onChangeText={setPassword} placeholderTextColor={theme.muted} placeholder="••••••••" />
-
-        <TouchableOpacity style={s.btn} onPress={submit} disabled={busy}>
-          <Text style={s.btnText}>{busy ? "Signing in…" : "Sign in"}</Text>
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+        <TextInput style={styles.input} placeholder="Email" placeholderTextColor={theme.muted} value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
+        <TextInput style={styles.input} placeholder="Password" placeholderTextColor={theme.muted} value={password} onChangeText={setPassword} secureTextEntry />
+        <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
+          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign In</Text>}
         </TouchableOpacity>
-
-        <TouchableOpacity onPress={() => navigation.navigate("Register")} style={{ marginTop: 20 }}>
-          <Text style={s.link}>No account? <Text style={{ color: theme.primary }}>Create one</Text></Text>
+        <TouchableOpacity onPress={() => navigation.navigate("Register")}>
+          <Text style={styles.link}>Don't have an account? Register</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={loginAsGuest} style={styles.guestBtn}>
+          <Text style={styles.guestText}>Continue as Guest</Text>
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-export const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.bg },
-  scroll: { padding: 24, paddingTop: 80, flexGrow: 1 },
-  brand: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 40 },
-  brandText: { color: theme.text, fontWeight: "900", fontSize: 20, letterSpacing: 1 },
-  title: { color: theme.text, fontSize: 32, fontWeight: "900" },
-  subtitle: { color: theme.muted, fontSize: 14, marginTop: 4, marginBottom: 28 },
-  label: { color: theme.muted, fontSize: 11, letterSpacing: 1, marginBottom: 6, marginTop: 14 },
-  input: { backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 12, color: theme.text, fontSize: 15 },
-  btn: { backgroundColor: theme.primary, borderRadius: 8, paddingVertical: 14, alignItems: "center", marginTop: 28 },
-  btnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
-  link: { color: theme.muted, textAlign: "center", fontSize: 14 },
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: theme.background },
+  scroll: { flexGrow: 1, justifyContent: "center", padding: 24 },
+  logo: { alignItems: "center", marginBottom: 32 },
+  logoText: { fontSize: 32, fontWeight: "800", color: theme.primary },
+  tagline: { fontSize: 14, color: theme.muted, marginTop: 4 },
+  input: { backgroundColor: theme.input, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: theme.text, marginBottom: 12, borderWidth: 1, borderColor: theme.border },
+  button: { backgroundColor: theme.primary, borderRadius: 12, paddingVertical: 14, alignItems: "center", marginBottom: 12 },
+  buttonText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  link: { color: theme.primary, textAlign: "center", fontSize: 14, marginTop: 8 },
+  guestBtn: { marginTop: 20, padding: 12, borderWidth: 1, borderColor: theme.border, borderRadius: 12, alignItems: "center" },
+  guestText: { color: theme.muted, fontSize: 14 },
+  error: { color: theme.destructive, fontSize: 14, marginBottom: 12, textAlign: "center" },
 });

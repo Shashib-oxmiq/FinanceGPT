@@ -1,95 +1,111 @@
-import React, { useCallback, useState } from "react";
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
+import React, { useEffect, useState, useCallback } from "react";
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
-import { api } from "../api";
+import * as FileSystem from "expo-file-system";
+import { useAuth } from "../contexts/AuthContext";
+import { useLanguage } from "../contexts/LanguageContext";
+import { api } from "../services/api";
 import { theme } from "../theme";
 
-const CATS = ["auto", "financial", "tax", "bank_statement", "credit_card_statement", "investment", "insurance", "education", "identity", "medical", "property", "vehicle", "legal_estate", "warranty", "subscription", "employment", "immigration", "personal", "other"];
-const LABEL = (c) => (c === "auto" ? "Auto-detect" : c.replace(/_/g, " ").replace(/\b\w/g, (x) => x.toUpperCase()));
+const CATEGORIES = ["All", "Identity", "Financial", "Property", "Insurance", "Tax", "Medical", "Legal", "Other"];
 
 export default function VaultScreen() {
-  const [docs, setDocs] = useState([]);
-  const [cat, setCat] = useState("auto");
-  const [uploading, setUploading] = useState(false);
+  const { t } = useLanguage();
+  const { user } = useAuth();
+  const [items, setItems] = useState([]);
+  const [category, setCategory] = useState("All");
+  const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    try { const { data } = await api.get("/documents"); setDocs(data); } catch {}
-  }, []);
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+    if (!user) return;
+    try { const data = await api.getDocuments(user.user_id); setItems(data); }
+    catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  }, [user]);
 
-  const upload = async () => {
-    const res = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true, multiple: true });
-    if (res.canceled || !res.assets?.length) return;
-    setUploading(true);
-    let ok = 0;
-    for (const file of res.assets) {
-      try {
-        const form = new FormData();
-        form.append("file", { uri: file.uri, name: file.name, type: file.mimeType || "application/octet-stream" });
-        form.append("category", cat);
-        form.append("auto_classify", cat === "auto" ? "true" : "false");
-        await api.post("/documents/upload", form, { headers: { "Content-Type": "multipart/form-data" } });
-        ok++;
-      } catch {}
-    }
-    setUploading(false);
-    if (ok < res.assets.length) Alert.alert("Upload", `${ok}/${res.assets.length} uploaded`);
-    load();
+  useEffect(() => { load(); }, [load]);
+
+  const pick = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ multiple: true, copyToCacheDirectory: true });
+      if (result.canceled) return;
+      for (const asset of result.assets) {
+        // Check for duplicates by name
+        const dup = items.find((d) => d.original_filename === asset.name);
+        if (dup) {
+          Alert.alert("Duplicate Detected", `"${asset.name}" already exists in your vault.`);
+          continue;
+        }
+        const hash = asset.size + "_" + asset.name;
+        const doc = { original_filename: asset.name, category: "Other", content_type: asset.mimeType || "application/octet-stream", size: asset.size, storage_path: asset.uri, content_hash: hash, tags: "[]" };
+        await api.addDocument(user.user_id, doc);
+      }
+      load();
+    } catch (e) { console.error(e); }
   };
 
-  const del = async (id) => { await api.delete(`/documents/${id}`); load(); };
+  const del = (id) => {
+    Alert.alert("Delete Document", "Are you sure?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: async () => { await api.deleteDocument(id, user.user_id); load(); } },
+    ]);
+  };
+
+  const filtered = category === "All" ? items : items.filter((d) => d.category === category);
+
+  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color={theme.primary} /></View>;
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.bg }}>
-      <View style={st.catBar}>
-        <FlatList
-          horizontal
-          data={CATS}
-          keyExtractor={(c) => c}
-          showsHorizontalScrollIndicator={false}
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>{t("page.vault.title")}</Text>
+        <Text style={styles.subtitle}>{t("page.vault.subtitle")}</Text>
+      </View>
+      <View style={styles.chips}>
+        {CATEGORIES.map((c) => (
+          <TouchableOpacity key={c} style={[styles.chip, category === c && styles.chipActive]} onPress={() => setCategory(c)}>
+            <Text style={[styles.chipText, category === c && styles.chipTextActive]}>{c}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      {filtered.length === 0 ? (
+        <View style={styles.empty}><Ionicons name="folder" size={40} color={theme.muted} /><Text style={styles.emptyText}>No documents yet. Tap + to upload.</Text></View>
+      ) : (
+        <FlatList data={filtered} keyExtractor={(x) => x.document_id} contentContainerStyle={{ paddingBottom: 80 }}
           renderItem={({ item }) => (
-            <TouchableOpacity onPress={() => setCat(item)} style={[st.chip, cat === item && st.chipActive]}>
-              <Text style={[st.chipText, cat === item && { color: "#fff" }]}>{LABEL(item)}</Text>
-            </TouchableOpacity>
+            <View style={styles.card}>
+              <Ionicons name="document" size={20} color={theme.primary} />
+              <View style={styles.cardInfo}>
+                <Text style={styles.cardName} numberOfLines={1}>{item.original_filename}</Text>
+                <Text style={styles.cardMeta}>{item.category} · {(item.size / 1024).toFixed(0)} KB</Text>
+              </View>
+              <TouchableOpacity onPress={() => del(item.document_id)}><Ionicons name="trash-outline" size={16} color={theme.destructive} /></TouchableOpacity>
+            </View>
           )}
         />
-      </View>
-      <TouchableOpacity style={st.uploadBtn} onPress={upload} disabled={uploading}>
-        <Ionicons name="cloud-upload" size={18} color="#fff" />
-        <Text style={st.uploadText}>{uploading ? "Uploading…" : `Upload to ${LABEL(cat)}`}</Text>
-      </TouchableOpacity>
-
-      <FlatList
-        data={docs}
-        keyExtractor={(d) => d.document_id}
-        contentContainerStyle={{ padding: 16 }}
-        renderItem={({ item }) => (
-          <View style={st.docRow}>
-            <Ionicons name="document-text" size={24} color={theme.primary} />
-            <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text style={st.docName} numberOfLines={1}>{item.original_filename}</Text>
-              <Text style={st.docMeta}>{LABEL(item.category)} · {(item.size / 1024).toFixed(0)} KB</Text>
-            </View>
-            <TouchableOpacity onPress={() => del(item.document_id)}><Ionicons name="trash" size={18} color={theme.danger} /></TouchableOpacity>
-          </View>
-        )}
-        ListEmptyComponent={<Text style={st.empty}>No documents yet. Upload bank statements, tax files, IDs and more.</Text>}
-      />
+      )}
+      <TouchableOpacity style={styles.fab} onPress={pick}><Ionicons name="add" size={28} color="#fff" /></TouchableOpacity>
     </View>
   );
 }
 
-const st = StyleSheet.create({
-  catBar: { paddingVertical: 10, paddingLeft: 12, borderBottomColor: theme.border, borderBottomWidth: 1 },
-  chip: { borderColor: theme.border, borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, marginRight: 8 },
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: theme.background },
+  center: { flex: 1, backgroundColor: theme.background, justifyContent: "center", alignItems: "center" },
+  header: { padding: 20, paddingTop: 60 },
+  title: { fontSize: 24, fontWeight: "800", color: theme.text },
+  subtitle: { fontSize: 14, color: theme.muted, marginTop: 4 },
+  chips: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 16, gap: 8, marginBottom: 12 },
+  chip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border },
   chipActive: { backgroundColor: theme.primary, borderColor: theme.primary },
-  chipText: { color: theme.muted, fontSize: 12, fontWeight: "600" },
-  uploadBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: theme.primary, margin: 16, marginBottom: 0, borderRadius: 10, paddingVertical: 12 },
-  uploadText: { color: "#fff", fontWeight: "700" },
-  docRow: { flexDirection: "row", alignItems: "center", backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1, borderRadius: 10, padding: 14, marginBottom: 10 },
-  docName: { color: theme.text, fontWeight: "600" },
-  docMeta: { color: theme.muted, fontSize: 11, marginTop: 2, textTransform: "uppercase", letterSpacing: 0.5 },
-  empty: { color: theme.muted, textAlign: "center", marginTop: 40 },
+  chipText: { fontSize: 12, color: theme.textSecondary },
+  chipTextActive: { color: "#fff" },
+  empty: { flex: 1, justifyContent: "center", alignItems: "center", paddingBottom: 100 },
+  emptyText: { color: theme.muted, fontSize: 14, marginTop: 12, textAlign: "center" },
+  card: { flexDirection: "row", alignItems: "center", backgroundColor: theme.card, borderRadius: 12, padding: 14, marginHorizontal: 16, marginBottom: 8, gap: 12, borderWidth: 1, borderColor: theme.border },
+  cardInfo: { flex: 1 },
+  cardName: { fontSize: 14, fontWeight: "600", color: theme.text },
+  cardMeta: { fontSize: 12, color: theme.muted, marginTop: 2 },
+  fab: { position: "absolute", bottom: 20, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: theme.primary, justifyContent: "center", alignItems: "center", elevation: 8, shadowColor: "#000", shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } },
 });

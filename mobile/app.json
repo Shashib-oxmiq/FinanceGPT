@@ -4,25 +4,44 @@
     "slug": "everkin",
     "version": "1.0.0",
     "orientation": "portrait",
-    "scheme": "everkin",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
     "splash": {
-      "backgroundColor": "#09090b",
-      "resizeMode": "contain"
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0a0a0a"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.everkin.app"
-    },
-    "android": {
-      "package": "com.everkin.app",
-      "adaptiveIcon": {
-        "backgroundColor": "#09090b"
+      "bundleIdentifier": "com.everkin.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Everkin needs camera access to scan documents.",
+        "NSPhotoLibraryUsageDescription": "Everkin needs photo library access to upload documents.",
+        "NSDocumentsFolderUsageDescription": "Everkin needs access to documents to store generated PDFs.",
+        "NSFaceIDUsageDescription": "Everkin uses Face ID for secure document vault access."
       }
     },
-    "web": {
-      "bundler": "metro"
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0a0a0a"
+      },
+      "package": "com.everkin.app"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": "Everkin uses Face ID for secure access."
+        }
+      ]
+    ],
+    "scheme": "everkin",
+    "extra": {
+      "eas": {
+        "projectId": "everkin-mobile"
+      }
     }
   }
 }

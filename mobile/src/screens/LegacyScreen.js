@@ -1,124 +1,112 @@
-import React, { useCallback, useState } from "react";
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, TextInput, ScrollView, Alert } from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
+import React, { useEffect, useState, useCallback } from "react";
+import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { api } from "../api";
+import { useAuth } from "../contexts/AuthContext";
+import { useLanguage } from "../contexts/LanguageContext";
+import { api } from "../services/api";
 import { theme } from "../theme";
 
 export default function LegacyScreen() {
+  const { t } = useLanguage();
+  const { user } = useAuth();
   const [contacts, setContacts] = useState([]);
-  const [pack, setPack] = useState(null);
-  const [show, setShow] = useState(false);
-  const [form, setForm] = useState({ name: "", relationship: "spouse", email: "", phone: "", access_level: "full" });
+  const [shares, setShares] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({ name: "", relationship: "", email: "", phone: "" });
 
   const load = useCallback(async () => {
+    if (!user) return;
     try {
-      const [c, p] = await Promise.all([api.get("/legacy/contacts"), api.get("/legacy/pack")]);
-      setContacts(c.data); setPack(p.data);
-    } catch {}
-  }, []);
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+      const c = await api.getContacts(user.user_id);
+      setContacts(c);
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  }, [user]);
 
-  const add = async () => {
-    if (!form.name) return Alert.alert("Name required");
-    try {
-      await api.post("/legacy/contacts", form);
-      setForm({ name: "", relationship: "spouse", email: "", phone: "", access_level: "full" });
-      setShow(false);
-      load();
-    } catch { Alert.alert("Failed to add contact"); }
+  useEffect(() => { load(); }, [load]);
+
+  const addContact = async () => {
+    if (!form.name) return;
+    await api.addContact(user.user_id, { ...form, access_level: "view" });
+    setForm({ name: "", relationship: "", email: "", phone: "" });
+    setShowAdd(false);
+    load();
   };
 
-  const del = async (id) => { await api.delete(`/legacy/contacts/${id}`); load(); };
+  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color={theme.primary} /></View>;
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.bg }}>
-      <FlatList
-        data={contacts}
-        keyExtractor={(c) => c.contact_id}
-        contentContainerStyle={{ padding: 16 }}
-        ListHeaderComponent={
-          <View style={st.summary}>
-            <Ionicons name="heart" size={26} color={theme.accent} />
-            <Text style={st.summaryTitle}>Handover pack</Text>
-            <View style={st.metrics}>
-              <Metric label="Policies" value={pack?.policy_count ?? 0} />
-              <Metric label="Documents" value={pack?.document_count ?? 0} />
-              <Metric label="Sum Assured" value={Number(pack?.total_sum_assured || 0).toLocaleString()} />
-            </View>
-            <Text style={st.note}>Full .zip export (with all documents) is available in the Everkin web app.</Text>
-            <TouchableOpacity style={st.addBtn} onPress={() => setShow(true)}>
-              <Ionicons name="add" size={16} color="#fff" />
-              <Text style={st.addText}>Add next-of-kin</Text>
-            </TouchableOpacity>
-            <Text style={st.section}>TRUSTED CONTACTS</Text>
-          </View>
-        }
-        renderItem={({ item }) => (
-          <View style={st.contact}>
-            <View style={{ flex: 1 }}>
-              <Text style={st.cName}>{item.name} <Text style={{ color: theme.muted }}>· {item.relationship}</Text></Text>
-              <Text style={st.cMeta}>{item.email} {item.phone ? `· ${item.phone}` : ""}</Text>
-              <Text style={st.cAccess}>{item.access_level} access</Text>
-            </View>
-            <TouchableOpacity onPress={() => del(item.contact_id)}><Ionicons name="trash" size={18} color={theme.danger} /></TouchableOpacity>
-          </View>
-        )}
-        ListEmptyComponent={<Text style={st.empty}>No next-of-kin added yet. Add your spouse or a trusted person.</Text>}
-      />
-
-      <Modal visible={show} animationType="slide" transparent onRequestClose={() => setShow(false)}>
-        <View style={st.modalWrap}>
-          <View style={st.modal}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 12 }}>
-              <Text style={st.modalTitle}>Add trusted contact</Text>
-              <TouchableOpacity onPress={() => setShow(false)}><Ionicons name="close" size={22} color={theme.text} /></TouchableOpacity>
-            </View>
-            <ScrollView>
-              {[["Name *", "name"], ["Relationship", "relationship"], ["Email", "email"], ["Phone", "phone"], ["Access level (full/financial/insurance)", "access_level"]].map(([label, key]) => (
-                <View key={key}>
-                  <Text style={st.label}>{label.toUpperCase()}</Text>
-                  <TextInput style={st.input} value={form[key]} onChangeText={(v) => setForm((f) => ({ ...f, [key]: v }))} placeholderTextColor={theme.muted} autoCapitalize="none" />
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>{t("page.legacy.title")}</Text>
+        <Text style={styles.subtitle}>{t("page.legacy.subtitle")}</Text>
+      </View>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Trusted Contacts</Text>
+        {contacts.length === 0 ? (
+          <Text style={styles.emptyText}>No trusted contacts added yet. They will inherit access to your documents.</Text>
+        ) : (
+          <FlatList data={contacts} keyExtractor={(x) => x.contact_id} scrollEnabled={false}
+            renderItem={({ item }) => (
+              <View style={styles.contactCard}>
+                <Ionicons name="person" size={20} color={theme.primary} />
+                <View style={styles.contactInfo}>
+                  <Text style={styles.contactName}>{item.name}</Text>
+                  <Text style={styles.contactMeta}>{item.relationship}{item.email ? ` · ${item.email}` : ""}</Text>
                 </View>
-              ))}
-              <TouchableOpacity style={[st.addBtn, { justifyContent: "center", marginTop: 16 }]} onPress={add}>
-                <Text style={st.addText}>Save</Text>
-              </TouchableOpacity>
-            </ScrollView>
+              </View>
+            )}
+          />
+        )}
+      </View>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Secure Shares</Text>
+        <Text style={styles.emptyText}>Create time-limited secure shares of your documents with trusted contacts.</Text>
+      </View>
+      <TouchableOpacity style={styles.fab} onPress={() => setShowAdd(true)}>
+        <Ionicons name="add" size={28} color="#fff" />
+      </TouchableOpacity>
+      {showAdd && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Add Trusted Contact</Text>
+            <TextInput style={styles.input} placeholder="Name" placeholderTextColor={theme.muted} value={form.name} onChangeText={(v) => setForm({ ...form, name: v })} />
+            <TextInput style={styles.input} placeholder="Relationship" placeholderTextColor={theme.muted} value={form.relationship} onChangeText={(v) => setForm({ ...form, relationship: v })} />
+            <TextInput style={styles.input} placeholder="Email" placeholderTextColor={theme.muted} value={form.email} onChangeText={(v) => setForm({ ...form, email: v })} keyboardType="email-address" />
+            <TextInput style={styles.input} placeholder="Phone" placeholderTextColor={theme.muted} value={form.phone} onChangeText={(v) => setForm({ ...form, phone: v })} keyboardType="phone-pad" />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowAdd(false)}><Text style={styles.cancelText}>{t("common.cancel")}</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.saveBtn} onPress={addContact}><Text style={styles.saveText}>{t("button.save")}</Text></TouchableOpacity>
+            </View>
           </View>
         </View>
-      </Modal>
+      )}
     </View>
   );
 }
 
-function Metric({ label, value }) {
-  return (
-    <View style={{ alignItems: "center" }}>
-      <Text style={st.metricValue}>{value}</Text>
-      <Text style={st.metricLabel}>{label}</Text>
-    </View>
-  );
-}
-
-const st = StyleSheet.create({
-  summary: { backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1, borderRadius: 12, padding: 18, marginBottom: 16 },
-  summaryTitle: { color: theme.text, fontSize: 20, fontWeight: "800", marginTop: 6 },
-  metrics: { flexDirection: "row", justifyContent: "space-around", marginTop: 16 },
-  metricValue: { color: theme.text, fontSize: 22, fontWeight: "900" },
-  metricLabel: { color: theme.muted, fontSize: 10, letterSpacing: 1, marginTop: 2 },
-  note: { color: theme.muted, fontSize: 12, marginTop: 14 },
-  addBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: theme.primary, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10, marginTop: 14, alignSelf: "flex-start" },
-  addText: { color: "#fff", fontWeight: "700" },
-  section: { color: theme.muted, fontSize: 11, letterSpacing: 1, marginTop: 18 },
-  contact: { flexDirection: "row", alignItems: "center", backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1, borderRadius: 10, padding: 14, marginBottom: 10 },
-  cName: { color: theme.text, fontWeight: "700" },
-  cMeta: { color: theme.muted, fontSize: 12, marginTop: 2 },
-  cAccess: { color: theme.primary, fontSize: 10, letterSpacing: 1, textTransform: "uppercase", marginTop: 4 },
-  empty: { color: theme.muted, textAlign: "center", marginTop: 10 },
-  modalWrap: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
-  modal: { backgroundColor: theme.card, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20, maxHeight: "85%" },
-  modalTitle: { color: theme.text, fontSize: 20, fontWeight: "800" },
-  label: { color: theme.muted, fontSize: 11, letterSpacing: 1, marginTop: 12, marginBottom: 5 },
-  input: { backgroundColor: theme.bg, borderColor: theme.border, borderWidth: 1, borderRadius: 8, color: theme.text, paddingHorizontal: 12, paddingVertical: 10 },
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: theme.background },
+  center: { flex: 1, backgroundColor: theme.background, justifyContent: "center", alignItems: "center" },
+  header: { padding: 20, paddingTop: 60 },
+  title: { fontSize: 24, fontWeight: "800", color: theme.text },
+  subtitle: { fontSize: 14, color: theme.muted, marginTop: 4 },
+  section: { padding: 20, paddingTop: 24 },
+  sectionTitle: { fontSize: 16, fontWeight: "700", color: theme.text, marginBottom: 12 },
+  emptyText: { fontSize: 14, color: theme.muted, lineHeight: 20 },
+  contactCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: theme.card, borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: theme.border },
+  contactInfo: { flex: 1 },
+  contactName: { fontSize: 15, fontWeight: "600", color: theme.text },
+  contactMeta: { fontSize: 12, color: theme.muted, marginTop: 2 },
+  fab: { position: "absolute", bottom: 20, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: theme.primary, justifyContent: "center", alignItems: "center", elevation: 8, shadowColor: "#000", shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } },
+  modalOverlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" },
+  modalContent: { backgroundColor: theme.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20 },
+  modalTitle: { fontSize: 20, fontWeight: "700", color: theme.text, marginBottom: 16 },
+  input: { backgroundColor: theme.input, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: theme.text, marginBottom: 10, borderWidth: 1, borderColor: theme.border },
+  modalButtons: { flexDirection: "row", gap: 12, marginTop: 16 },
+  cancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: theme.border, alignItems: "center" },
+  cancelText: { color: theme.textSecondary, fontSize: 15, fontWeight: "600" },
+  saveBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: theme.primary, alignItems: "center" },
+  saveText: { color: "#fff", fontSize: 15, fontWeight: "700" },
 });
