@@ -4,6 +4,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
 import { api } from "../services/api";
+import SmartAddBar from "../components/SmartAddBar";
+import PanelChat from "../components/PanelChat";
 import { theme, formatMoney } from "../theme";
 
 export default function InvestmentsScreen() {
@@ -83,6 +85,7 @@ export default function InvestmentsScreen() {
         <Text style={styles.title}>{t("page.investments.title")}</Text>
         <Text style={styles.subtitle}>{t("page.investments.subtitle")}</Text>
       </View>
+      <SmartAddBar context="Investments" onSaved={load} />
       {summary && (
         <View style={styles.summaryRow}>
           <View style={styles.summaryItem}><Text style={styles.summaryLabel}>{t("stat.total_invested")}</Text><Text style={styles.summaryValue}>{formatMoney(summary.total_invested)}</Text></View>
@@ -93,7 +96,7 @@ export default function InvestmentsScreen() {
       {items.length === 0 ? (
         <View style={styles.empty}><Ionicons name="trending-up" size={40} color={theme.muted} /><Text style={styles.emptyText}>{t("empty.investments")}</Text></View>
       ) : (
-        <FlatList data={items} keyExtractor={(x) => x.investment_id} renderItem={renderItem} contentContainerStyle={{ paddingBottom: 80 }} refreshControl={<RefreshControl refreshing={false} onRefresh={load} tintColor={theme.primary} />} />
+        <FlatList data={items} keyExtractor={(x) => x.investment_id} renderItem={renderItem} contentContainerStyle={{ paddingBottom: 80 }} refreshControl={<RefreshControl refreshing={false} onRefresh={load} tintColor={theme.primary} />} ListFooterComponent={<PanelChat context="Investments" />} />
       )}
       <TouchableOpacity style={styles.fab} onPress={() => { setForm({ name: "", asset_type: "stock", amount_invested: "", current_value: "", ticker: "", market: "", notes: "" }); setEditId(null); setShow(true); }}>
         <Ionicons name="add" size={28} color="#fff" />

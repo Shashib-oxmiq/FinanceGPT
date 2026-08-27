@@ -1,6 +1,6 @@
 // ── App Entry Point ───────────────────────────────────────────────────────────
 // React Native iOS app with tab navigation + stack for auth flow
-// Mirrors the Electron app's 13-page structure
+// Full 19-screen structure matching the desktop Electron app
 
 import React, { useEffect } from "react";
 import { StatusBar } from "expo-status-bar";
@@ -15,10 +15,15 @@ import { AuthProvider, useAuth } from "./src/contexts/AuthContext";
 import { LanguageProvider } from "./src/contexts/LanguageContext";
 import { theme } from "./src/theme";
 import { initDB } from "./src/services/db";
+import { initSyncEngine } from "./src/services/sync";
 
-// Screens
+// Auth screens
+import LandingScreen from "./src/screens/LandingScreen";
 import LoginScreen from "./src/screens/LoginScreen";
 import RegisterScreen from "./src/screens/RegisterScreen";
+import AuthCallbackScreen from "./src/screens/AuthCallbackScreen";
+
+// Main screens
 import ChatScreen from "./src/screens/ChatScreen";
 import DashboardScreen from "./src/screens/DashboardScreen";
 import InvestmentsScreen from "./src/screens/InvestmentsScreen";
@@ -31,6 +36,9 @@ import LifeEventsScreen from "./src/screens/LifeEventsScreen";
 import GmailScreen from "./src/screens/GmailScreen";
 import InsightsScreen from "./src/screens/InsightsScreen";
 import LegacyScreen from "./src/screens/LegacyScreen";
+import BundlerScreen from "./src/screens/BundlerScreen";
+import FormFillerScreen from "./src/screens/FormFillerScreen";
+import SharedViewScreen from "./src/screens/SharedViewScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -49,11 +57,7 @@ function MainTabs() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarStyle: {
-          backgroundColor: theme.card,
-          borderTopColor: theme.border,
-          borderTopWidth: 1,
-        },
+        tabBarStyle: { backgroundColor: theme.card, borderTopColor: theme.border, borderTopWidth: 1 },
         tabBarActiveTintColor: theme.primary,
         tabBarInactiveTintColor: theme.muted,
         tabBarIcon: ({ color, size }) => (
@@ -74,9 +78,11 @@ function MainTabs() {
 function AppContent() {
   const { user, loading } = useAuth();
 
-  // Initialize database on app start
   useEffect(() => {
-    initDB().catch(console.error);
+    initDB().then(() => {
+      const sync = initSyncEngine();
+      if (sync.enabled) sync.start();
+    }).catch(console.error);
   }, []);
 
   if (loading) {
@@ -95,8 +101,10 @@ function AppContent() {
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {!user ? (
           <>
+            <Stack.Screen name="Landing" component={LandingScreen} />
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="Register" component={RegisterScreen} />
+            <Stack.Screen name="AuthCallback" component={AuthCallbackScreen} />
           </>
         ) : (
           <>
@@ -108,6 +116,9 @@ function AppContent() {
             <Stack.Screen name="Gmail" component={GmailScreen} />
             <Stack.Screen name="Insights" component={InsightsScreen} />
             <Stack.Screen name="Legacy" component={LegacyScreen} />
+            <Stack.Screen name="Bundler" component={BundlerScreen} />
+            <Stack.Screen name="FormFiller" component={FormFillerScreen} />
+            <Stack.Screen name="SharedView" component={SharedViewScreen} />
           </>
         )}
       </Stack.Navigator>

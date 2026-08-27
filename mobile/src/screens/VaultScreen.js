@@ -5,6 +5,8 @@ import { pickDocument } from "../services/platform";
 import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
 import { api } from "../services/api";
+import SmartAddBar from "../components/SmartAddBar";
+import PanelChat from "../components/PanelChat";
 import { theme } from "../theme";
 
 const CATEGORIES = ["All", "Identity", "Financial", "Property", "Insurance", "Tax", "Medical", "Legal", "Other"];

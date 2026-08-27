@@ -4,6 +4,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
 import { api } from "../services/api";
+import SmartAddBar from "../components/SmartAddBar";
+import PanelChat from "../components/PanelChat";
 import { theme, formatMoney } from "../theme";
 
 const EMPTY = { policy_type: "", provider: "", policy_number: "", sum_assured: "", premium_amount: "", premium_frequency: "annual", start_date: "", maturity_date: "", nominee: "", notes: "" };
@@ -42,10 +44,11 @@ export default function InsuranceScreen() {
         <Text style={styles.title}>{t("page.insurance.title")}</Text>
         <Text style={styles.subtitle}>{t("page.insurance.subtitle")}</Text>
       </View>
+      <SmartAddBar context="Insurance" onSaved={load} />
       {items.length === 0 ? (
         <View style={styles.empty}><Ionicons name="shield-checkmark" size={40} color={theme.muted} /><Text style={styles.emptyText}>No policies yet. Add your first one!</Text></View>
       ) : (
-        <FlatList data={items} keyExtractor={(x) => x.insurance_id} contentContainerStyle={{ paddingBottom: 80 }}
+        <FlatList data={items} keyExtractor={(x) => x.insurance_id} contentContainerStyle={{ paddingBottom: 80 }} ListFooterComponent={<PanelChat context="Insurance" />}
           renderItem={({ item }) => (
             <View style={styles.card}>
               <View style={styles.cardHeader}>

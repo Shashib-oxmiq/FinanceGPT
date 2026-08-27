@@ -4,6 +4,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
 import { api } from "../services/api";
+import SmartAddBar from "../components/SmartAddBar";
+import PanelChat from "../components/PanelChat";
 import { theme, formatMoney } from "../theme";
 
 export default function DashboardScreen({ navigation }) {
@@ -48,6 +50,7 @@ export default function DashboardScreen({ navigation }) {
         <Text style={styles.greeting}>Hello, {user?.name || "there"}</Text>
         <Text style={styles.subtitle}>{t("page.dashboard.subtitle")}</Text>
       </View>
+      <SmartAddBar context="Dashboard" onSaved={load} />
       <View style={styles.cardsGrid}>
         {cards.map((c, i) => (
           <View key={i} style={styles.card}>
@@ -80,6 +83,9 @@ export default function DashboardScreen({ navigation }) {
           ))}
         </View>
       )}
+      <View style={{ paddingBottom: 16 }}>
+        <PanelChat context="Dashboard" />
+      </View>
     </ScrollView>
   );
 }
