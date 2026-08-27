@@ -140,12 +140,12 @@
 | ID | Feature | Desktop | Mobile | Status | Notes |
 |----|---------|---------|--------|--------|-------|
 | F-083 | 100 Indian government forms database | active | active | active | 10 categories |
-| F-084 | Form search (name/authority/description) | active | active | active | |
-| F-085 | Category filter | active | active | active | |
+| F-084 | Form search (name/authority/description) | active | deprecated | deprecated | Mobile: superseded_by F-183. Desktop still uses search. |
+| F-085 | Category filter | active | deprecated | deprecated | Mobile: superseded_by F-183. Desktop still uses categories. |
 | F-086 | Form detail (authority, fees, processing time) | active | active | active | |
 | F-087 | Required documents checklist | active | active | active | |
 | F-088 | Vault matching (have vs missing docs) | active | active | active | Checks user's vault |
-| F-089 | PDF checklist download | active | active | active | Mobile: txt, desktop: PDF |
+| F-089 | PDF/text checklist download | active | deprecated | deprecated | Superseded_by F-187 (in-chat checklist) |
 | F-090 | Example prompts (3) instead of full grid | missing | active | active | Mobile: chat-driven approach |
 | F-091 | Browse all forms link | missing | active | active | Mobile: available but not primary |
 | F-092 | SmartAddBar | active | active | active | |
@@ -161,9 +161,9 @@
 | F-097 | Template field auto-fill from profile | active | active | active | |
 | F-098 | PDF generation | active | missing | missing | Mobile: text only |
 | F-099 | DOCX generation | active | missing | missing | Mobile: text only |
-| F-100 | Text generation | missing | active | active | Mobile-only fallback |
-| F-101 | Document download (web: Blob, native: Sharing) | active | active | active | |
-| F-102 | Inline document display in chat | missing | active | active | Mobile: F-023 |
+| F-100 | Text generation | missing | deprecated | deprecated | Superseded_by F-186 (structured doc objects) |
+| F-101 | Document download (web: Blob, native: Sharing) | active | deprecated | deprecated | Superseded_by F-185 (share as primary action) |
+| F-102 | Inline document display in chat | missing | active | active | Mobile: now uses DocumentCard |
 | F-103 | MCP document generation server | active | missing | missing | backend/mcp_docgen.py |
 | F-104 | Chat-driven document generation | active | active | active | [DOC_GEN] marker |
 
@@ -215,7 +215,7 @@
 
 | ID | Feature | Desktop | Mobile | Status | Notes |
 |----|---------|---------|--------|--------|-------|
-| F-129 | 8 life event types | active | active | active | |
+| F-129 | 8 life event types (icon grid) | active | deprecated | deprecated | Mobile: superseded_by F-184 (conversational life events) |
 | F-130 | Event tracking | active | active | active | |
 | F-131 | Event guide/checklist | active | missing | missing | /life-events/guide |
 | F-132 | SmartAddBar | active | active | active | Fixed 2026-08-27 |
@@ -263,7 +263,7 @@
 
 | ID | Feature | Desktop | Mobile | Status | Notes |
 |----|---------|---------|--------|--------|-------|
-| F-152 | Form selection from list | active | active | active | |
+| F-152 | Form selection from list | active | deprecated | deprecated | Mobile: superseded_by F-183 (conversational form ID) |
 | F-153 | Form field filling | active | active | active | |
 | F-154 | Saved form copies | active | active | active | |
 | F-155 | Checklist download | active | active | active | |
@@ -313,20 +313,35 @@
 | F-179 | Android native build | N/A | missing | missing | Not attempted |
 | F-180 | Web mode (browser testing) | N/A | active | active | Expo web + CORS proxy |
 
+## F-NATIVE · AI-Native Experience (v2 Redesign)
+
+| ID | Feature | Desktop | Mobile | Status | Notes |
+|----|---------|---------|--------|--------|-------|
+| F-181 | Adaptive AI intelligence (matches user's level) | missing | active | active | Simple for less-educated, precise for professionals |
+| F-182 | Proactive life-event detection from conversation | missing | active | active | AI detects marriage/home/child/job from chat |
+| F-183 | Conversational form identification (no catalog) | missing | active | active | AI finds form from user's description, not browsing |
+| F-184 | Conversational life events (no icon grid) | missing | active | active | 4 life-situation prompts + chat, no 8-icon grid |
+| F-185 | Document Share as primary action (replaces download) | missing | active | active | Share API (native) / clipboard (web) |
+| F-186 | Structured document objects for in-chat display | missing | active | active | generateDocumentObject() → DocumentCard |
+| F-187 | In-chat checklist (replaces file download) | missing | active | active | generateChecklistObject() with matched/missing docs |
+| F-188 | DocumentCard component (rich in-chat document) | missing | active | active | Preview, Save to Vault, Share, Modify buttons |
+| F-189 | Document modification in chat | missing | active | active | "Modify" button pre-fills input for AI re-generation |
+| F-190 | Life-situation example prompts | missing | active | active | Marriage, home, child, job change, business |
+
 ---
 
 ## Summary Statistics
 
 | Metric | Count |
 |--------|-------|
-| Total features registered | 180 |
+| Total features registered | 190 |
 | Active on both platforms | 107 |
 | Desktop-only (active) | 38 |
-| Mobile-only (active) | 12 |
-| Missing on mobile | 40 |
-| Missing on desktop | 8 |
+| Mobile-only (active) | 22 |
+| Missing on mobile | 33 |
+| Missing on desktop | 10 |
 | Partial | 4 |
-| Deprecated | 0 |
+| Deprecated | 7 |
 
 ## Top Missing Features on Mobile (Priority Order)
 
@@ -376,6 +391,8 @@
 | 2026-08-27 | F-151: PanelChat moved outside FlatList on BundlerScreen | LivAgent |
 | 2026-08-27 | F-157: PanelChat added to FormFiller list view | LivAgent |
 | 2026-08-27 | F-116: PanelChat confirmed already rendered on DashboardScreen | LivAgent |
+| 2026-08-27 | F-084/F-085/F-089/F-100/F-101/F-129/F-152: Deprecated old paradigms (form catalog, text download, icon grid) | LivAgent |
+| 2026-08-27 | F-181 to F-190: New AI-native features added (adaptive AI, proactive detection, DocumentCard, conversational forms/events, in-chat checklists) | LivAgent |
 
 ---
 

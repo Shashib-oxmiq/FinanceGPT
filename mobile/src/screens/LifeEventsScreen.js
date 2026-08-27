@@ -1,4 +1,9 @@
-import React, { useEffect, useState, useCallback } from "react";
+// ── LifeEventsScreen — Conversational Life Event Planning ────────────────────
+// NO 8-icon grid. NO static event cards. The user tells the AI what's happening
+// in their life. The AI proactively offers relevant documents, insurance updates,
+// financial steps, and reminders — all in conversation.
+
+import React, { useState, useCallback, useEffect } from "react";
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../contexts/AuthContext";
@@ -8,15 +13,11 @@ import SmartAddBar from "../components/SmartAddBar";
 import PanelChat from "../components/PanelChat";
 import { theme } from "../theme";
 
-const EVENT_TYPES = [
-  { type: "marriage", icon: "heart", label: "Marriage" },
-  { type: "home_purchase", icon: "home", label: "Home Purchase" },
-  { type: "child_birth", icon: "happy", label: "Child Birth" },
-  { type: "retirement", icon: "sunny", label: "Retirement" },
-  { type: "education", icon: "school", label: "Education" },
-  { type: "relocation", icon: "airplane", label: "Relocation" },
-  { type: "job_change", icon: "briefcase", label: "Job Change" },
-  { type: "business_start", icon: "storefront", label: "Start Business" },
+const LIFE_PROMPTS = [
+  { icon: "heart", text: "I'm getting married" },
+  { icon: "home", text: "I'm buying a new home" },
+  { icon: "happy", text: "We're expecting a child" },
+  { icon: "briefcase", text: "I'm changing jobs" },
 ];
 
 export default function LifeEventsScreen({ navigation }) {
@@ -44,34 +45,47 @@ export default function LifeEventsScreen({ navigation }) {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>{t("page.life_events.title")}</Text>
-          <Text style={styles.subtitle}>{t("page.life_events.subtitle")}</Text>
+          <Text style={styles.subtitle}>Tell me what's happening — I'll guide you</Text>
         </View>
       </View>
-      <SmartAddBar context="LifeEvents" onSaved={load} />
-      <Text style={styles.sectionTitle}>Plan for a Life Event</Text>
-      <View style={styles.grid}>
-        {EVENT_TYPES.map((e) => (
-          <TouchableOpacity key={e.type} style={styles.eventCard} activeOpacity={0.7}>
-            <Ionicons name={e.icon} size={28} color={theme.primary} />
-            <Text style={styles.eventLabel}>{e.label}</Text>
-          </TouchableOpacity>
-        ))}
+
+      {/* Conversational intro — NOT an icon grid */}
+      <View style={styles.introSection}>
+        <Text style={styles.introTitle}>What's happening in your life?</Text>
+        <Text style={styles.introSub}>Big life changes come with paperwork, financial decisions, and deadlines. Tell me what's going on and I'll proactively help you prepare — documents you'll need, insurance to update, financial steps to take, and reminders so nothing falls through the cracks.</Text>
       </View>
+
+      {LIFE_PROMPTS.map((ex, i) => (
+        <TouchableOpacity key={i} style={styles.suggestionCard} activeOpacity={0.7}>
+          <View style={styles.suggestionIcon}>
+            <Ionicons name={ex.icon} size={22} color={theme.primary} />
+          </View>
+          <Text style={styles.suggestionText}>{ex.text}</Text>
+          <Ionicons name="chevron-forward" size={16} color={theme.muted} />
+        </TouchableOpacity>
+      ))}
+
+      {/* Tracked events */}
       {items.length > 0 && (
         <View style={styles.savedSection}>
-          <Text style={styles.sectionTitle}>Your Life Events</Text>
-          <FlatList data={items} keyExtractor={(x) => x.event_id} scrollEnabled={false}
+          <Text style={styles.savedTitle}>Your Life Events</Text>
+          <FlatList
+            data={items}
+            keyExtractor={(x) => x.event_id || x.id || String(x)}
+            scrollEnabled={false}
             renderItem={({ item }) => (
               <View style={styles.savedItem}>
                 <Ionicons name="flag" size={18} color={theme.primary} />
-                <Text style={styles.savedText}>{item.event_type.replace(/_/g, " ")}</Text>
-                <Text style={styles.savedDate}>{item.event_date || ""}</Text>
+                <Text style={styles.savedText}>{(item.event_type || item.type || "").replace(/_/g, " ")}</Text>
+                <Text style={styles.savedDate}>{item.event_date || item.date || ""}</Text>
               </View>
             )}
           />
         </View>
       )}
-      <PanelChat context="LifeEvents" title="Ask AI about life event planning" />
+
+      <SmartAddBar context="LifeEvents" onSaved={load} />
+      <PanelChat context="LifeEvents" title="Tell me about your life event" />
     </View>
   );
 }
@@ -83,12 +97,33 @@ const styles = StyleSheet.create({
   backBtn: { padding: 4 },
   title: { fontSize: 24, fontWeight: "800", color: theme.text },
   subtitle: { fontSize: 14, color: theme.muted, marginTop: 4 },
-  sectionTitle: { fontSize: 16, fontWeight: "700", color: theme.text, paddingHorizontal: 20, paddingTop: 20, marginBottom: 12 },
-  grid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 16, gap: 12 },
-  eventCard: { width: "47%", backgroundColor: theme.card, borderRadius: 16, padding: 20, alignItems: "center", borderWidth: 1, borderColor: theme.border, flexGrow: 1 },
-  eventLabel: { fontSize: 13, color: theme.textSecondary, marginTop: 8, textAlign: "center" },
-  savedSection: { paddingTop: 24 },
-  savedItem: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: theme.card, borderRadius: 12, padding: 14, marginHorizontal: 16, marginBottom: 8, borderWidth: 1, borderColor: theme.border },
+  introSection: { paddingHorizontal: 20, paddingVertical: 16 },
+  introTitle: { fontSize: 18, fontWeight: "700", color: theme.text, marginBottom: 6 },
+  introSub: { fontSize: 14, color: theme.muted, lineHeight: 20 },
+  suggestionCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: theme.card,
+    borderRadius: 14,
+    padding: 14,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: theme.border,
+  },
+  suggestionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: theme.primary + "20",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  suggestionText: { flex: 1, fontSize: 14, color: theme.text, fontWeight: "500" },
+  savedSection: { paddingTop: 20, paddingHorizontal: 20 },
+  savedTitle: { fontSize: 15, fontWeight: "700", color: theme.text, marginBottom: 8 },
+  savedItem: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: theme.card, borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: theme.border },
   savedText: { flex: 1, fontSize: 15, color: theme.text, textTransform: "capitalize" },
   savedDate: { fontSize: 12, color: theme.muted },
 });

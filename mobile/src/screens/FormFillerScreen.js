@@ -1,13 +1,15 @@
-// ── FormFiller Screen ────────────────────────────────────────────────────────
-// Fill out selected form fields and save copies
+// ── FormFillerScreen — Conversational Form Identification ────────────────────
+// NO 30-form list. NO form browsing. The user describes what they need in chat.
+// AI identifies the form from conversation, checks vault, and guides filling.
+
 import React, { useState, useCallback, useEffect } from "react";
-import { View, Text, ScrollView, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
-import { api, initDB_if_needed } from "../services/api";
-import { getFormById, FORMS_DATA, FORM_CATEGORIES } from "../services/formsData";
-import { downloadFormChecklist } from "../services/docGen";
+import { api } from "../services/api";
+import { getFormById } from "../services/formsData";
+import { generateChecklistObject, shareDocument } from "../services/docGen";
 import SmartAddBar from "../components/SmartAddBar";
 import PanelChat from "../components/PanelChat";
 import { theme } from "../theme";
@@ -34,94 +36,89 @@ export default function FormFillerScreen({ route, navigation }) {
 
   if (loading) return <View style={styles.center}><ActivityIndicator size="large" color={theme.primary} /></View>;
 
-  if (!form) {
+  // If a specific form was passed via navigation (from AI [FORM_REC])
+  if (form) {
+    const docList = (form.documents || "").split(",").map((d) => d.trim()).filter(Boolean);
+
     return (
-      <View style={styles.container}>
+      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <TouchableOpacity onPress={() => { setForm(null); setFormId(null); }} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={20} color={theme.text} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
-            <Text style={styles.title}>Form Filler</Text>
-            <Text style={styles.subtitle}>Select a form to fill out</Text>
+            <Text style={styles.title}>{form.name}</Text>
+            <Text style={styles.subtitle}>{form.authority}</Text>
           </View>
         </View>
-        <SmartAddBar context="FormFiller" />
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 20 }}>
-          {FORMS_DATA.slice(0, 30).map((f) => (
-            <TouchableOpacity key={f.id} style={styles.formRow} onPress={() => { setFormId(f.id); setForm(f); }}>
-              <Ionicons name="document-text" size={18} color={theme.primary} />
-              <Text style={styles.formName}>{f.name}</Text>
-              <Ionicons name="chevron-forward" size={16} color={theme.muted} />
-            </TouchableOpacity>
-          ))}
-          {savedCopies.length > 0 && (
-            <View style={styles.savedSection}>
-              <Text style={styles.savedTitle}>Saved Copies</Text>
-              {savedCopies.map((c) => (
-                <View key={c.copy_id} style={styles.savedRow}>
-                  <Ionicons name="save" size={16} color={theme.accent} />
-                  <Text style={styles.savedName}>{c.name || "Untitled"}</Text>
-                  <Text style={styles.savedDate}>{c.created_at?.substring(0, 10)}</Text>
-                </View>
-              ))}
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>What you need</Text>
+          {docList.map((doc, i) => (
+            <View key={i} style={styles.checklistRow}>
+              <Ionicons name="ellipse-outline" size={18} color={theme.muted} />
+              <Text style={styles.checklistText}>{doc}</Text>
             </View>
-          )}
-        </ScrollView>
-        <PanelChat context="FormFiller" title="Ask AI about forms" />
-      </View>
+          ))}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Details</Text>
+          <View style={styles.detailRow}><Text style={styles.detailLabel}>Fees</Text><Text style={styles.detailValue}>{form.fees}</Text></View>
+          <View style={styles.detailRow}><Text style={styles.detailLabel}>Processing</Text><Text style={styles.detailValue}>{form.processing_time}</Text></View>
+          {form.online_url ? (
+            <TouchableOpacity style={styles.onlineBtn} onPress={() => {}}>
+              <Ionicons name="open-outline" size={16} color={theme.primary} />
+              <Text style={styles.onlineText}>Apply Online</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Fill with AI</Text>
+          <Text style={styles.fillHint}>Tell me about your situation and I'll help you prepare this form.</Text>
+          <SmartAddBar context="FormFiller" onSaved={loadCopies} />
+        </View>
+
+        <PanelChat context="FormFiller" title="Ask AI about this form" />
+      </ScrollView>
     );
   }
 
-  // Parse required documents as fields
-  const docList = form.documents.split(",").map((d) => d.trim());
-
+  // Default: conversational form identification — NO form list
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
-      <TouchableOpacity style={styles.backBtn} onPress={() => { setForm(null); setFormId(null); }}>
-        <Ionicons name="arrow-back" size={18} color={theme.primary} />
-        <Text style={styles.backText}>Back to forms</Text>
-      </TouchableOpacity>
-      <View style={styles.detailHeader}>
-        <Text style={styles.detailTitle}>{form.name}</Text>
-        <View style={styles.badges}>
-          <View style={styles.badge}><Text style={styles.badgeText}>{form.category}</Text></View>
-          <View style={styles.badge}><Text style={styles.badgeText}>{form.authority}</Text></View>
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={20} color={theme.text} />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title}>Forms</Text>
+          <Text style={styles.subtitle}>Tell me what you need — I'll find the right form</Text>
         </View>
       </View>
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Required Documents</Text>
-        {docList.map((doc, i) => (
-          <View key={i} style={styles.checklistRow}>
-            <Ionicons name="ellipse-outline" size={20} color={theme.muted} />
-            <Text style={styles.checklistText}>{doc}</Text>
-          </View>
-        ))}
+
+      <View style={styles.introSection}>
+        <Text style={styles.introTitle}>What do you need help with?</Text>
+        <Text style={styles.introSub}>Describe your situation in your own words. I'll identify the right government form, check your vault for required documents, and guide you through the process.</Text>
       </View>
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Details</Text>
-        <View style={styles.detailRow}><Text style={styles.detailLabel}>Fees</Text><Text style={styles.detailValue}>{form.fees}</Text></View>
-        <View style={styles.detailRow}><Text style={styles.detailLabel}>Processing</Text><Text style={styles.detailValue}>{form.processing_time}</Text></View>
-        {form.online_url ? (
-          <TouchableOpacity style={styles.onlineBtn}>
-            <Ionicons name="open-outline" size={16} color={theme.primary} />
-            <Text style={styles.onlineText}>Apply Online</Text>
-          </TouchableOpacity>
-        ) : null}
-      </View>
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Form Data</Text>
-        <Text style={styles.fillHint}>Use Smart Add below to fill form details via AI, or type your data:</Text>
-        <SmartAddBar context="FormFiller" onSaved={loadCopies} />
-      </View>
-      <TouchableOpacity style={styles.checklistBtn} onPress={() => downloadFormChecklist(form)}>
-        <Ionicons name="download" size={18} color="#fff" />
-        <Text style={styles.checklistBtnText}>Download Checklist</Text>
-      </TouchableOpacity>
-      <View style={{ paddingHorizontal: 16, paddingBottom: 16 }}>
-        <PanelChat context="FormFiller" />
-      </View>
-    </ScrollView>
+
+      {savedCopies.length > 0 && (
+        <View style={styles.savedSection}>
+          <Text style={styles.savedTitle}>Your Saved Forms</Text>
+          {savedCopies.map((c) => (
+            <View key={c.copy_id} style={styles.savedRow}>
+              <Ionicons name="save" size={16} color={theme.accent} />
+              <Text style={styles.savedName}>{c.name || "Untitled"}</Text>
+              <Text style={styles.savedDate}>{c.created_at?.substring(0, 10)}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      <SmartAddBar context="FormFiller" />
+      <PanelChat context="FormFiller" title="Ask me about any form" />
+    </View>
   );
 }
 
@@ -130,32 +127,24 @@ const styles = StyleSheet.create({
   center: { flex: 1, backgroundColor: theme.background, justifyContent: "center", alignItems: "center" },
   header: { flexDirection: "row", alignItems: "center", gap: 12, padding: 20, paddingTop: 60 },
   backBtn: { padding: 4 },
-  title: { fontSize: 24, fontWeight: "800", color: theme.text },
-  subtitle: { fontSize: 14, color: theme.muted, marginTop: 4 },
-  formRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: theme.border },
-  formName: { flex: 1, fontSize: 14, color: theme.text, fontWeight: "500" },
-  savedSection: { padding: 16, paddingTop: 24 },
-  savedTitle: { fontSize: 16, fontWeight: "700", color: theme.text, marginBottom: 12 },
-  savedRow: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: theme.card, borderRadius: 10, padding: 12, marginBottom: 6, borderWidth: 1, borderColor: theme.border },
-  savedName: { flex: 1, fontSize: 14, color: theme.text },
-  savedDate: { fontSize: 12, color: theme.muted },
-  backBtn: { flexDirection: "row", alignItems: "center", gap: 4, padding: 20, paddingTop: 60 },
-  backText: { color: theme.primary, fontSize: 14, fontWeight: "600" },
-  detailHeader: { padding: 20, paddingTop: 4 },
-  detailTitle: { fontSize: 22, fontWeight: "800", color: theme.text, marginBottom: 12 },
-  badges: { flexDirection: "row", gap: 8 },
-  badge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 16, backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border },
-  badgeText: { fontSize: 11, color: theme.textSecondary },
-  section: { padding: 20, paddingTop: 12 },
-  sectionTitle: { fontSize: 16, fontWeight: "700", color: theme.text, marginBottom: 12 },
-  checklistRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10 },
-  checklistText: { flex: 1, fontSize: 14, color: theme.text },
-  detailRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 8 },
+  title: { fontSize: 22, fontWeight: "800", color: theme.text },
+  subtitle: { fontSize: 13, color: theme.muted, marginTop: 2 },
+  introSection: { paddingHorizontal: 20, paddingVertical: 16 },
+  introTitle: { fontSize: 18, fontWeight: "700", color: theme.text, marginBottom: 6 },
+  introSub: { fontSize: 14, color: theme.muted, lineHeight: 20 },
+  section: { paddingHorizontal: 20, paddingTop: 20 },
+  sectionTitle: { fontSize: 15, fontWeight: "700", color: theme.text, marginBottom: 10 },
+  checklistRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 6 },
+  checklistText: { fontSize: 14, color: theme.textSecondary, flex: 1 },
+  detailRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 6 },
   detailLabel: { fontSize: 14, color: theme.muted },
   detailValue: { fontSize: 14, color: theme.text, fontWeight: "500" },
-  onlineBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 12, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: theme.primary + "40" },
-  onlineText: { color: theme.primary, fontSize: 15, fontWeight: "600" },
-  fillHint: { fontSize: 13, color: theme.muted, marginBottom: 12 },
-  checklistBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginHorizontal: 20, marginTop: 8, paddingVertical: 14, borderRadius: 12, backgroundColor: theme.primary },
-  checklistBtnText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+  onlineBtn: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10, borderWidth: 1, borderColor: theme.primary, alignSelf: "flex-start" },
+  onlineText: { color: theme.primary, fontSize: 13, fontWeight: "600" },
+  fillHint: { fontSize: 13, color: theme.muted, marginBottom: 10 },
+  savedSection: { paddingHorizontal: 20, paddingTop: 16 },
+  savedTitle: { fontSize: 15, fontWeight: "700", color: theme.text, marginBottom: 8 },
+  savedRow: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: theme.card, borderRadius: 10, padding: 12, marginBottom: 6, borderWidth: 1, borderColor: theme.border },
+  savedName: { flex: 1, fontSize: 14, color: theme.text },
+  savedDate: { fontSize: 12, color: theme.muted },
 });

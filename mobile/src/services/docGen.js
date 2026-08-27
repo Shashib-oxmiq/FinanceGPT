@@ -1,13 +1,17 @@
-// ── Document Generation Service ──────────────────────────────────────────────
-// Generates document text for 8 legal templates
-// On web: triggers browser download as .txt (or HTML for PDF)
-// On native: uses Sharing API
+// ── Document Generation Service (v2) ─────────────────────────────────────────
+// AI-native: generates structured document objects for in-chat display.
+// The old paradigm was "download a .txt file." The new paradigm is:
+// the AI hands you a completed document as a rich card in the conversation.
+//
+// Documents are born in chat, previewed in chat, saved to vault from chat,
+// and shared from chat. File download is a secondary fallback only.
 
-import { Platform } from "react-native";
+import { Platform, Share, Alert } from "react-native";
 
 const TEMPLATES = {
   rental_agreement: {
-    title: "RENTAL AGREEMENT",
+    title: "Rental Agreement",
+    category: "Legal",
     fields: ["landlord_name", "tenant_name", "property_address", "rent_amount", "security_deposit", "lease_start_date", "lease_end_date"],
     body: (d) => `RENTAL AGREEMENT
 
@@ -27,7 +31,8 @@ Witness 1: ____________________
 Witness 2: ____________________`,
   },
   nda: {
-    title: "NON-DISCLOSURE AGREEMENT",
+    title: "Non-Disclosure Agreement",
+    category: "Legal",
     fields: ["disclosing_party", "receiving_party", "effective_date", "purpose", "duration_months"],
     body: (d) => `NON-DISCLOSURE AGREEMENT
 
@@ -46,7 +51,8 @@ Receiving Party: ${d.receiving_party || "____"}
 Date: ${d.effective_date || "____"}`,
   },
   will: {
-    title: "LAST WILL AND TESTAMENT",
+    title: "Last Will and Testament",
+    category: "Legal",
     fields: ["testator_name", "testator_address", "beneficiary_name", "relationship", "asset_description", "witness_1", "witness_2"],
     body: (d) => `LAST WILL AND TESTAMENT OF ${(d.testator_name || "____").toUpperCase()}
 
@@ -62,7 +68,8 @@ Witness 1: ${d.witness_1 || "____"}
 Witness 2: ${d.witness_2 || "____"}`,
   },
   employment_contract: {
-    title: "EMPLOYMENT CONTRACT",
+    title: "Employment Contract",
+    category: "Legal",
     fields: ["employer_name", "employee_name", "position", "salary", "start_date", "probation_months"],
     body: (d) => `EMPLOYMENT CONTRACT
 
@@ -79,7 +86,8 @@ Employer: ${d.employer_name || "____"}
 Employee: ${d.employee_name || "____"}`,
   },
   loan_agreement: {
-    title: "LOAN AGREEMENT",
+    title: "Loan Agreement",
+    category: "Legal",
     fields: ["lender_name", "borrower_name", "loan_amount", "interest_rate", "loan_date", "repayment_date"],
     body: (d) => `LOAN AGREEMENT
 
@@ -95,7 +103,8 @@ Lender: ${d.lender_name || "____"}
 Borrower: ${d.borrower_name || "____"}`,
   },
   power_of_attorney: {
-    title: "POWER OF ATTORNEY",
+    title: "Power of Attorney",
+    category: "Legal",
     fields: ["principal_name", "agent_name", "scope", "effective_date", "is_durable"],
     body: (d) => `POWER OF ATTORNEY
 
@@ -111,7 +120,8 @@ Principal: ${d.principal_name || "____"}
 Agent: ${d.agent_name || "____"}`,
   },
   partnership_deed: {
-    title: "PARTNERSHIP DEED",
+    title: "Partnership Deed",
+    category: "Legal",
     fields: ["partner_1", "partner_2", "business_name", "capital_1", "capital_2", "profit_ratio"],
     body: (d) => `PARTNERSHIP DEED
 
@@ -127,7 +137,8 @@ Partner 1: ${d.partner_1 || "____"}
 Partner 2: ${d.partner_2 || "____"}`,
   },
   sale_deed: {
-    title: "SALE DEED",
+    title: "Sale Deed",
+    category: "Legal",
     fields: ["seller_name", "buyer_name", "property_description", "sale_amount", "sale_date", "registration_location"],
     body: (d) => `SALE DEED
 
@@ -145,28 +156,87 @@ Buyer: ${d.buyer_name || "____"}`,
   },
 };
 
-export function generateDocumentText(templateId, data) {
+// ── Generate a structured document object for in-chat display ─────────────────
+// Returns { type, title, content, fields, template_id, generated_at }
+// The ChatScreen passes this to <DocumentCard> for rich rendering.
+export function generateDocumentObject(templateId, data) {
   const tpl = TEMPLATES[templateId];
-  if (!tpl) throw new Error("Unknown template: " + templateId);
-  return tpl.body(data || {});
+  if (!tpl) {
+    // If AI provides freeform content directly, use it as-is
+    if (data && data.content) {
+      return {
+        type: templateId || "custom",
+        title: data.title || "Document",
+        content: data.content,
+        fields: data.fields || {},
+        template_id: null,
+        generated_at: new Date().toISOString(),
+      };
+    }
+    throw new Error("Unknown template: " + templateId);
+  }
+  return {
+    type: templateId,
+    title: tpl.title,
+    content: tpl.body(data || {}),
+    fields: data || {},
+    template_id: templateId,
+    generated_at: new Date().toISOString(),
+  };
 }
 
+// ── Generate plain text (legacy compat) ─────────────────────────────────────
+export function generateDocumentText(templateId, data) {
+  const doc = generateDocumentObject(templateId, data);
+  return doc.content;
+}
+
+// ── Template metadata for AI to know what fields to ask for ──────────────────
 export function getTemplateList() {
-  return Object.entries(TEMPLATES).map(([id, t]) => ({ id, name: t.title, fields: t.fields }));
+  return Object.entries(TEMPLATES).map(([id, t]) => ({
+    id,
+    name: t.title,
+    category: t.category,
+    fields: t.fields,
+  }));
 }
 
 export function getTemplate(id) {
-  return TEMPLATES[id] || null;
+  const tpl = TEMPLATES[id];
+  if (!tpl) return null;
+  return { id, ...tpl };
 }
 
-// ── Download / share document ────────────────────────────────────────────────
+// ── Share document (primary action — replaces download) ─────────────────────
+// On native: uses Share API (WhatsApp, Email, AirDrop, etc.)
+// On web: copies to clipboard
+export async function shareDocument(doc) {
+  const text = typeof doc === "string" ? doc : (doc.content || doc);
+  const title = typeof doc === "string" ? "Document" : (doc.title || "Document");
+
+  if (Platform.OS === "web") {
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(text);
+      return { ok: true, method: "clipboard" };
+    }
+    return { ok: false, error: "Clipboard not available" };
+  }
+
+  try {
+    await Share.share({ title, message: text });
+    return { ok: true, method: "share" };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+// ── Download document (secondary fallback — legacy compat) ──────────────────
 export async function downloadDocument(templateId, data, format) {
   const text = generateDocumentText(templateId, data);
-  const tpl = TEMPLATES[templateId];
+  const tpl = TEMPLATES[templateId] || { title: "Document" };
   const filename = (tpl.title.replace(/[^a-zA-Z0-9]/g, "_") + "." + (format || "txt")).toLowerCase();
 
   if (Platform.OS === "web") {
-    // Browser: trigger download
     const blob = new Blob([text], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -177,7 +247,6 @@ export async function downloadDocument(templateId, data, format) {
     return { ok: true, filename };
   }
 
-  // Native: use Sharing API
   try {
     const Sharing = require("expo-sharing");
     const FileSystem = require("expo-file-system");
@@ -186,26 +255,56 @@ export async function downloadDocument(templateId, data, format) {
     await Sharing.shareAsync(path, { mimeType: "text/plain", dialogTitle: tpl.title });
     return { ok: true, filename, path };
   } catch (e) {
-    // Fallback: return text
     return { ok: false, error: e.message, text };
   }
 }
 
-// ── Generate form checklist ──────────────────────────────────────────────────
+// ── Form checklist as in-chat message (not file download) ───────────────────
+// Returns a structured checklist object that ChatScreen renders as a rich card.
+export function generateChecklistObject(form, userDocs) {
+  const requiredDocs = (form.documents || "").split(",").map((d) => d.trim()).filter(Boolean);
+  const have = userDocs || [];
+  const matched = requiredDocs.filter((d) =>
+    have.some((u) => u.original_filename?.toLowerCase().includes(d.toLowerCase()) || u.category?.toLowerCase().includes(d.toLowerCase()))
+  );
+  const missing = requiredDocs.filter((d) => !matched.includes(d));
+
+  return {
+    type: "checklist",
+    title: `Checklist: ${form.name}`,
+    form_id: form.id,
+    authority: form.authority,
+    fees: form.fees,
+    processing_time: form.processing_time,
+    required: requiredDocs,
+    matched,
+    missing,
+    matched_count: matched.length,
+    missing_count: missing.length,
+    content: [
+      `DOCUMENT CHECKLIST: ${form.name}`,
+      `Authority: ${form.authority}`,
+      `Fees: ${form.fees}`,
+      `Processing: ${form.processing_time}`,
+      "",
+      "REQUIRED DOCUMENTS:",
+      ...requiredDocs.map((d, i) => {
+        const has = matched.includes(d);
+        return `  ${i + 1}. [${has ? "✓" : " "}] ${d}${has ? " (in your vault)" : ""}`;
+      }),
+      "",
+      matched.length === requiredDocs.length
+        ? "✅ All documents are in your vault. You're ready to apply!"
+        : `⚠ ${missing.length} document(s) missing. Ask me how to get them.`,
+    ].join("\n"),
+    generated_at: new Date().toISOString(),
+  };
+}
+
+// ── Legacy checklist download (deprecated — kept for compat) ────────────────
 export async function downloadFormChecklist(form, userDocs) {
-  const requiredDocs = form.documents || "";
-  const lines = [
-    `DOCUMENT CHECKLIST: ${form.name}`,
-    `Authority: ${form.authority}`,
-    `Fees: ${form.fees}`,
-    `Processing Time: ${form.processing_time}`,
-    "",
-    "REQUIRED DOCUMENTS:",
-    ...requiredDocs.split(",").map((d, i) => `  ${i + 1}. [ ] ${d.trim()}`),
-    "",
-    `Generated by Everkin on ${new Date().toLocaleDateString()}`,
-  ];
-  const text = lines.join("\n");
+  const checklist = generateChecklistObject(form, userDocs);
+  const text = checklist.content;
   const filename = form.name.replace(/[^a-zA-Z0-9]/g, "_") + "_checklist.txt";
 
   if (Platform.OS === "web") {

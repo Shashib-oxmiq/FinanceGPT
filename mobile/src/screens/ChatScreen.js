@@ -11,18 +11,19 @@ import { api } from "../services/api";
 import { streamChat, buildSystemPrompt } from "../services/ai";
 import { setApiKey } from "../services/ai";
 import { SecureStoreShim } from "../services/platform";
-import { generateDocumentText, downloadDocument, getTemplate } from "../services/docGen";
+import { generateDocumentText, generateDocumentObject, downloadDocument, getTemplate } from "../services/docGen";
 import { getFormById } from "../services/formsData";
+import DocumentCard from "../components/DocumentCard";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import { theme } from "../theme";
 
 const EXAMPLES = [
-  "What insurance do I need for my family?",
-  "Analyze my investment portfolio",
-  "Help me plan for a home loan",
-  "I need to file my taxes — what do I need?",
-  "Make a rental agreement for me",
-  "What should my next-of-kin know?",
+  "I'm getting married next month — what should I prepare?",
+  "I need a rental agreement for my new flat",
+  "How are my investments doing?",
+  "I want to buy a house — can you help me plan?",
+  "What documents does my family need if something happens to me?",
+  "I just started a small business — what do I need?",
 ];
 
 const TPL_NAMES = {
@@ -186,21 +187,18 @@ export default function ChatScreen({ navigation }) {
           const parsed = JSON.parse(m[1]);
           const tplId = parsed.template_id;
           const tplData = parsed.data || {};
-          const fmt = parsed.format || "txt";
-          // Generate document text
-          const docText = generateDocumentText(tplId, tplData);
+          // Generate structured document object for DocumentCard
+          const docObj = generateDocumentObject(tplId, tplData);
           cleanText = cleanText.replace(m[0], "");
           // Add as a special "document" message after the AI message
-          const tplName = TPL_NAMES[tplId] || tplId;
           setMessages((m) => [...m, {
             role: "assistant",
-            content: docText,
+            content: docObj.content,
             message_id: Date.now() + "doc",
             isDocument: true,
-            docTitle: tplName,
-            docFormat: fmt,
+            docObj: docObj,
           }]);
-          showToast(tplName + " generated");
+          showToast(docObj.title + " ready");
         } catch (e) { console.warn("DOC_GEN failed:", e); }
       }
 
@@ -212,11 +210,30 @@ export default function ChatScreen({ navigation }) {
           if (form) {
             // Check which docs the user already has in vault
             const docs = await api.getDocuments(user.user_id);
-            const userCategories = new Set(docs.map((d) => d.category.toLowerCase()));
+            const userCats = new Set(docs.map((d) => (d.category || "").toLowerCase()));
+            const userFiles = new Set(docs.map((d) => (d.original_filename || "").toLowerCase()));
             const requiredDocs = form.documents.split(",").map((d) => d.trim());
-            const have = requiredDocs.filter((d) => userCategories.has(d.toLowerCase().split(" ")[0]));
-            const missing = requiredDocs.filter((d) => !userCategories.has(d.toLowerCase().split(" ")[0]));
-            const formInfo = `\n\n📋 **${form.name}**\nAuthority: ${form.authority}\nFees: ${form.fees}\nProcessing: ${form.processing_time}\n\n✅ You already have: ${have.length > 0 ? have.join(", ") : "none"}\n❌ Still needed: ${missing.length > 0 ? missing.join(", ") : "all documents"}\n${form.online_url ? `\n🌐 Apply online: ${form.online_url}` : ""}`;
+            const have = requiredDocs.filter((d) =>
+              userCats.has(d.toLowerCase().split(" ")[0]) ||
+              userFiles.has(d.toLowerCase())
+            );
+            const missing = requiredDocs.filter((d) =>
+              !userCats.has(d.toLowerCase().split(" ")[0]) &&
+              !userFiles.has(d.toLowerCase())
+            );
+            // Conversational format — not a table
+            let formInfo = `\n\n\u2705 **${form.name}**\n`;
+            formInfo += `Authority: ${form.authority} \u00b7 Fees: ${form.fees}\n`;
+            if (have.length > 0) {
+              formInfo += `You already have: ${have.join(", ")} \u2014 great!\n`;
+            }
+            if (missing.length > 0) {
+              formInfo += `You still need: ${missing.join(", ")}. `;
+              formInfo += `Want me to help you get any of these?\n`;
+            } else {
+              formInfo += `You have everything you need. You're ready to apply!\n`;
+            }
+            if (form.online_url) formInfo += `Apply online: ${form.online_url}`;
             cleanText += formInfo;
           }
           cleanText = cleanText.replace(m[0], "");
@@ -254,18 +271,14 @@ export default function ChatScreen({ navigation }) {
 
   // ── Render message ──
   const renderMessage = ({ item }) => {
-    if (item.isDocument) {
+    if (item.isDocument && item.docObj) {
       return (
-        <View style={[styles.msg, styles.msgDoc]}>
-          <View style={styles.docHeader}>
-            <Ionicons name="document-text" size={18} color={theme.accent} />
-            <Text style={styles.docTitle}>{item.docTitle}</Text>
-          </View>
-          <Text style={styles.docContent}>{item.content}</Text>
-          <TouchableOpacity style={styles.docDownloadBtn} onPress={() => downloadDocument(null, {}, "txt")}>
-            <Ionicons name="download" size={14} color="#fff" />
-            <Text style={styles.docDownloadText}>Save</Text>
-          </TouchableOpacity>
+        <View style={styles.msgDocWrap}>
+          <DocumentCard doc={item.docObj} user={user} onModify={(doc) => {
+            // Pre-fill the input with a modification request
+            setInput(`Please modify the ${doc.title}: `);
+            flatRef.current?.scrollToOffset({ offset: 0, animated: true });
+          }} />
         </View>
       );
     }
@@ -555,12 +568,7 @@ const styles = StyleSheet.create({
   msgAssistant: { alignSelf: "flex-start", backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border, flexDirection: "row", gap: 8 },
   msgAvatar: { width: 24, height: 24, borderRadius: 8, backgroundColor: theme.primary + "15", justifyContent: "center", alignItems: "center", alignSelf: "flex-start" },
   msgAssistantText: { flex: 1, color: theme.text, fontSize: 14, lineHeight: 20 },
-  msgDoc: { alignSelf: "flex-start", backgroundColor: theme.accent + "10", borderWidth: 1, borderColor: theme.accent + "40", width: "90%" },
-  docHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
-  docTitle: { fontSize: 14, fontWeight: "700", color: theme.accent },
-  docContent: { fontSize: 12, color: theme.textSecondary, lineHeight: 18, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
-  docDownloadBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: theme.accent },
-  docDownloadText: { color: "#fff", fontSize: 12, fontWeight: "600" },
+  msgDocWrap: { alignSelf: "stretch", marginVertical: 4 },
   // ── Toast ──
   toast: { position: "absolute", top: 60, left: 0, right: 0, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 8, marginHorizontal: 40, backgroundColor: theme.card, borderRadius: 12, borderWidth: 1, borderColor: theme.border, elevation: 4, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
   toastText: { fontSize: 13, color: theme.accent, fontWeight: "500" },
