@@ -2,7 +2,7 @@
 // Uses expo-secure-store for token persistence + SQLite for user data
 
 import React, { createContext, useContext, useState, useEffect } from "react";
-import * as SecureStore from "expo-secure-store";
+import { SecureStoreShim } from "../services/platform";
 import { initDB, dbInsert, dbGet, uuid } from "../services/db";
 
 const AuthContext = createContext(null);
@@ -16,8 +16,8 @@ export function AuthProvider({ children }) {
     (async () => {
       try {
         await initDB();
-        const savedToken = await SecureStore.getItemAsync("auth_token");
-        const savedUserId = await SecureStore.getItemAsync("user_id");
+        const savedToken = await SecureStoreShim.getItemAsync("auth_token");
+        const savedUserId = await SecureStoreShim.getItemAsync("user_id");
         if (savedToken && savedUserId) {
           const u = await dbGet("users", "user_id", savedUserId, savedUserId);
           if (u) {
@@ -46,8 +46,8 @@ export function AuthProvider({ children }) {
       throw new Error("Incorrect password.");
     }
     const t = uuid();
-    await SecureStore.setItemAsync("auth_token", t);
-    await SecureStore.setItemAsync("user_id", u.user_id);
+    await SecureStoreShim.setItemAsync("auth_token", t);
+    await SecureStoreShim.setItemAsync("user_id", u.user_id);
     setUser({ ...u, profile: JSON.parse(u.profile || "{}") });
     setToken(t);
     return u;
@@ -68,8 +68,8 @@ export function AuthProvider({ children }) {
     };
     await dbInsert("users", userData);
     const t = uuid();
-    await SecureStore.setItemAsync("auth_token", t);
-    await SecureStore.setItemAsync("user_id", userId);
+    await SecureStoreShim.setItemAsync("auth_token", t);
+    await SecureStoreShim.setItemAsync("user_id", userId);
     setUser({ ...userData, profile: {} });
     setToken(t);
     return userData;
@@ -87,8 +87,8 @@ export function AuthProvider({ children }) {
     };
     await dbInsert("users", userData);
     const t = uuid();
-    await SecureStore.setItemAsync("auth_token", t);
-    await SecureStore.setItemAsync("user_id", userId);
+    await SecureStoreShim.setItemAsync("auth_token", t);
+    await SecureStoreShim.setItemAsync("user_id", userId);
     setUser({ ...userData, profile: {} });
     setToken(t);
   };
@@ -105,8 +105,8 @@ export function AuthProvider({ children }) {
   };
 
   const logout = async () => {
-    await SecureStore.deleteItemAsync("auth_token");
-    await SecureStore.deleteItemAsync("user_id");
+    await SecureStoreShim.deleteItemAsync("auth_token");
+    await SecureStoreShim.deleteItemAsync("user_id");
     setUser(null);
     setToken(null);
   };

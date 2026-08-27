@@ -3,7 +3,7 @@
 // Uses SQLite translation cache + embedded translations for instant loading
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import * as SecureStore from "expo-secure-store";
+import { SecureStoreShim } from "../services/platform";
 import { getAllCachedTranslations, setCachedTranslation } from "../services/db";
 
 const LanguageContext = createContext(null);
@@ -225,7 +225,7 @@ export function LanguageProvider({ children }) {
 
   useEffect(() => {
     (async () => {
-      const saved = await SecureStore.getItemAsync("app_lang");
+      const saved = await SecureStoreShim.getItemAsync("app_lang");
       if (saved) {
         await changeLang(saved);
       }
@@ -239,7 +239,7 @@ export function LanguageProvider({ children }) {
 
   const changeLang = useCallback(async (code) => {
     setLang(code);
-    await SecureStore.setItemAsync("app_lang", code);
+    await SecureStoreShim.setItemAsync("app_lang", code);
     // Load from built-in first
     const builtin = BUILTIN[code] || {};
     // Then overlay SQLite cache (for AI-translated keys)

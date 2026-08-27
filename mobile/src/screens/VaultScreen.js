@@ -1,8 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import * as DocumentPicker from "expo-document-picker";
-import * as FileSystem from "expo-file-system";
+import { pickDocument } from "../services/platform";
 import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
 import { api } from "../services/api";
@@ -28,7 +27,7 @@ export default function VaultScreen() {
 
   const pick = async () => {
     try {
-      const result = await DocumentPicker.getDocumentAsync({ multiple: true, copyToCacheDirectory: true });
+      const result = await pickDocument();
       if (result.canceled) return;
       for (const asset of result.assets) {
         // Check for duplicates by name

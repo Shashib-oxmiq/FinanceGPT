@@ -2,8 +2,8 @@
 // Replaces MongoDB + FastAPI with embedded SQLite for offline-first iOS app.
 // Schema mirrors MongoDB collections for future cloud sync compatibility.
 
-import * as SQLite from 'expo-sqlite';
 import { CONFIG } from '../config';
+import { openDB } from './platform';
 
 let db = null;
 
@@ -12,7 +12,7 @@ let db = null;
 export async function initDB() {
   if (db) return db;
 
-  db = await SQLite.openDatabaseAsync(CONFIG.DB_NAME);
+  db = await openDB();
 
   // Create all tables (mirror MongoDB collections)
   await db.execAsync(`

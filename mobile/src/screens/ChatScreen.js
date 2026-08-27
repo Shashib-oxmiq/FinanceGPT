@@ -6,7 +6,7 @@ import { useLanguage } from "../contexts/LanguageContext";
 import { api } from "../services/api";
 import { streamChat, buildSystemPrompt } from "../services/ai";
 import { setApiKey } from "../services/ai";
-import * as SecureStore from "expo-secure-store";
+import { SecureStoreShim } from "../services/platform";
 import { theme } from "../theme";
 
 export default function ChatScreen() {
@@ -22,7 +22,7 @@ export default function ChatScreen() {
 
   useEffect(() => {
     (async () => {
-      const key = await SecureStore.getItemAsync("ai_api_key");
+      const key = await SecureStoreShim.getItemAsync("ai_api_key");
       if (key) setApiKey(key);
     })();
   }, []);
