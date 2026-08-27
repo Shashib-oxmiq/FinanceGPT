@@ -9,7 +9,7 @@
 > **Platforms**: `desktop` = Electron/web app · `mobile` = React Native iOS app
 >
 > Last updated: 2026-08-27
-> Total features registered: 226
+> Total features registered: 229
 
 ---
 
@@ -394,16 +394,26 @@
 
 ---
 
+## F-SAFETY · Life Safety & Emergency
+
+| ID | Feature | Desktop | Mobile | Status | Notes |
+|----|---------|---------|--------|--------|-------|
+| F-227 | Emergency Access & Dead-Man Switch | missing | active | active | Inactivity detection → grace period → kin escalation. Updates last_active on every app open. Configurable thresholds (15/30/60/90 days) and grace period (3/7/14/30 days). "I'm Okay" cancellation button. |
+| F-228 | Kin Access Package & Screen | missing | active | active | Read-only view for next of kin: insurance with claim instructions, investments with transfer steps, loans, property, goals, retirement, education, contacts, 12-step family checklist (death certificate, employer, banks, insurance claims, PF/PPF/NPS, property mutation, ITR) |
+| F-229 | Personal Message to Family | missing | active | active | User can write a personal message included in the kin handoff package — last words, instructions, wishes |
+
+---
+
 ## Summary Statistics
 
 | Metric | Count |
 |--------|-------|
-| Total features registered | 226 |
+| Total features registered | 229 |
 | Active on both platforms | 115 |
 | Desktop-only (active) | 38 |
-| Mobile-only (active) | 58 |
+| Mobile-only (active) | 61 |
 | Missing on mobile | 25 |
-| Missing on desktop | 46 |
+| Missing on desktop | 49 |
 | Partial | 5 |
 | Deprecated | 7 |
 
@@ -469,6 +479,7 @@
 | 2026-08-27 | F-201 to F-207: 7 life-dimension expansion features (Govt Schemes, Insurance Gap Analysis, Document Expiry, Medical Records, Legal Rights, AI Memory, Smart Reminders) | LivAgent |
 | 2026-08-27 | F-208 to F-219: 12 more life-dimension features (Credit/Loans, Bills, Education, Retirement, Tax Filing, Property, Premium Calendar, Tax Saving, Bilingual Docs, Health Score Trend, OCR Search, Portfolio Rebalancing) | LivAgent |
 | 2026-08-27 | F-220 to F-226: 7 financial intelligence features (Unified Profile, Cross-Feature Insights, Scenario Simulator, Goal Optimizer, Proactive Coach, Cash Flow Timeline, Adaptive Literacy) | LivAgent |
+| 2026-08-27 | F-227 to F-229: Life safety & emergency features (Dead-Man Switch with real escalation engine, Kin Access Package & Screen, Personal Message to Family) | LivAgent |
 
 ---
 

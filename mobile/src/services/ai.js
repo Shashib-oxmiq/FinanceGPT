@@ -317,12 +317,18 @@ export async function buildSystemPrompt(user, history, langCode) {
     `=== END FINANCIAL HEALTH ===\n\n` +
 
     // ═══ EMERGENCY ACCESS ═══
-    `=== EMERGENCY ACCESS ===\n` +
-    `Users can enable a dead-man switch: if they don't open the app for X days, trusted ` +
-    `contacts automatically receive a summary of their financial information. Mention this ` +
-    `when discussing estate planning: "Have you considered setting up Emergency Access? ` +
-    `If something happens to you, your family would automatically get your insurance details ` +
-    `and important documents. I can help you set that up."\n` +
+    `=== EMERGENCY ACCESS (Dead-Man Switch) ===\n` +
+    `Users can enable a dead-man switch: if they don't open the app for X days (configurable: 15/30/60/90), ` +
+    `the app first tries to reach them (grace period: 3/7/14/30 days). If no response, trusted contacts ` +
+    `automatically receive a complete kin handoff package: insurance policies with claim instructions, ` +
+    `investments with transfer steps, loans with next steps, property details, a 12-step family checklist ` +
+    `(death certificate, inform employer, bank freeze, insurance claims, PF/PPF/NPS, property mutation, ITR filing). ` +
+    `The user can also write a personal message to their family. ` +
+    `When discussing estate planning, strongly recommend: "Have you set up Emergency Access? ` +
+    `If something happens to you, your family would automatically get everything they need — ` +
+    `insurance details, investment accounts, a step-by-step checklist. It takes 2 minutes to set up. ` +
+    `Shall I walk you through it?" Also remind users to add term insurance as the first priority — ` +
+    `it's the cheapest way to protect their family, and without it, the kin package has no life insurance payout to claim.\n` +
     `=== END EMERGENCY ACCESS ===\n\n` +
 
     // ═══ FAMILY VAULT ═══

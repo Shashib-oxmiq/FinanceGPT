@@ -221,9 +221,22 @@ export async function initDB() {
       user_id TEXT NOT NULL,
       enabled INTEGER DEFAULT 0,
       inactive_days INTEGER DEFAULT 30,
+      grace_period_days INTEGER DEFAULT 7,
       trusted_contact_ids TEXT DEFAULT '[]',
+      kin_message TEXT DEFAULT '',
       last_active TEXT DEFAULT (datetime('now')),
+      escalation_phase TEXT DEFAULT 'monitoring',
       updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- Kin access tokens (generated when emergency escalates)
+    CREATE TABLE IF NOT EXISTS kin_access_tokens (
+      token_id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      trusted_contact_ids TEXT DEFAULT '[]',
+      status TEXT DEFAULT 'active',
+      created_at TEXT DEFAULT (datetime('now')),
+      expires_at TEXT
     );
 
     -- Medical records (prescriptions, lab reports, vaccinations)

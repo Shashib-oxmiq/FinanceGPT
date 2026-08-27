@@ -12,6 +12,7 @@ import { ActivityIndicator, View, Text } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AuthProvider, useAuth } from "./src/contexts/AuthContext";
+import { updateLastActive, checkEmergencyStatus } from "./src/services/emergencyService";
 import { LanguageProvider } from "./src/contexts/LanguageContext";
 import { theme } from "./src/theme";
 import { initDB } from "./src/services/db";
@@ -51,6 +52,7 @@ import EducationScreen from "./src/screens/EducationScreen";
 import RetirementScreen from "./src/screens/RetirementScreen";
 import TaxScreen from "./src/screens/TaxScreen";
 import PropertyScreen from "./src/screens/PropertyScreen";
+import KinAccessScreen from "./src/screens/KinAccessScreen";
 import SharedViewScreen from "./src/screens/SharedViewScreen";
 
 const Stack = createNativeStackNavigator();
@@ -95,8 +97,10 @@ function AppContent() {
     initDB().then(() => {
       const sync = initSyncEngine();
       if (sync.enabled) sync.start();
+      // Update last_active for dead-man switch on every app open
+      if (user?.user_id) updateLastActive(user.user_id).catch(() => {});
     }).catch(console.error);
-  }, []);
+  }, [user?.user_id]);
 
   if (loading) {
     return (
@@ -144,6 +148,7 @@ function AppContent() {
             <Stack.Screen name="Retirement" component={RetirementScreen} />
             <Stack.Screen name="Tax" component={TaxScreen} />
             <Stack.Screen name="Property" component={PropertyScreen} />
+            <Stack.Screen name="KinAccess" component={KinAccessScreen} />
             <Stack.Screen name="SharedView" component={SharedViewScreen} />
           </>
         )}
