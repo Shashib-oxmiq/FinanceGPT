@@ -12,7 +12,7 @@ import { getProperties, getPropertySummary } from "./property";
 import { getGoals } from "./goals";
 import { getExpenses } from "./expenses";
 import { computeHealthScore } from "./healthScore";
-import { analyzeAllocation } from "./rebalancing";
+import { analyzePortfolio as analyzeAllocation } from "./rebalancing";
 
 /**
  * Build the complete financial profile for a user.

@@ -441,6 +441,20 @@ export const dbList = async (table, userId, orderBy = 'created_at', order = 'DES
   return rows;
 };
 
+export const dbAll = async (sql, params = []) => {
+  try {
+    const d = await initDB();
+    return await d.getAllAsync(sql, params);
+  } catch (e) {
+    return [];
+  }
+};
+
+export const dbRun = async (sql, params = []) => {
+  const d = await initDB();
+  return await d.runAsync(sql, params);
+};
+
 export const dbInsert = async (table, data) => {
   const d = await initDB();
   const keys = Object.keys(data);
