@@ -17,6 +17,7 @@ import DocumentCard from "../components/DocumentCard";
 import { speak, stopSpeaking } from "../services/tts";
 import { getDailyBriefing } from "../services/briefing";
 import { startListening, stopListening, isVoiceSupported, getIsListening } from "../services/voice";
+import { getMemoryContext, processMemoryMarkers, autoExtractMemories } from "../services/aiMemory";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import { theme } from "../theme";
 
@@ -153,7 +154,11 @@ export default function ChatScreen({ navigation }) {
 
     // Build system prompt
     const history = messages.map((m) => ({ role: m.role, content: m.content }));
-    const system = await buildSystemPrompt(user, history, lang);
+    const memoryCtx = await getMemoryContext(user.user_id);
+    const system = await buildSystemPrompt(user, history, lang) + memoryCtx;
+
+    // Auto-extract memories from user message
+    autoExtractMemories(user.user_id, text).catch(() => {});
 
     // Add assistant placeholder
     const assistantId = Date.now() + "a";
@@ -294,6 +299,26 @@ export default function ChatScreen({ navigation }) {
           await createExpense(user.user_id, JSON.parse(m[1]));
           cleanText = cleanText.replace(m[0], "");
           showToast("Expense logged");
+        } catch (e) { console.warn(e); }
+      }
+
+      // ── Detect [MEMORY:category:key=value] ──
+      const memoryCount = await processMemoryMarkers(user.user_id, fullText);
+      if (memoryCount > 0) {
+        // Clean memory markers from displayed text
+        cleanText = cleanText.replace(/\[MEMORY:\w+:[^=]+=[^\]]+\]/g, "");
+      }
+
+      // ── Detect [SCHEME_REC:scheme_id] ──
+      const schemeMatches = [...fullText.matchAll(/\[SCHEME_REC:(\w+)\]/g)];
+      for (const m of schemeMatches) {
+        try {
+          const { SCHEMES } = require("../services/govSchemes");
+          const scheme = SCHEMES.find(s => s.id === m[1]);
+          if (scheme) {
+            cleanText = cleanText.replace(m[0], "");
+            showToast(`Scheme: ${scheme.name}`);
+          }
         } catch (e) { console.warn(e); }
       }
 

@@ -225,6 +225,35 @@ export async function initDB() {
       last_active TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     );
+
+    -- Medical records (prescriptions, lab reports, vaccinations)
+    CREATE TABLE IF NOT EXISTS medical_records (
+      record_id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      type TEXT NOT NULL,
+      title TEXT,
+      doctor TEXT,
+      hospital TEXT,
+      date TEXT,
+      diagnosis TEXT,
+      prescription TEXT,
+      notes TEXT,
+      attachments TEXT DEFAULT '[]',
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- AI memory (persistent across sessions)
+    CREATE TABLE IF NOT EXISTS ai_memory (
+      memory_id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      category TEXT NOT NULL,
+      key TEXT NOT NULL,
+      value TEXT NOT NULL,
+      confidence REAL DEFAULT 1.0,
+      source TEXT DEFAULT 'conversation',
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
   `);
 
   return db;

@@ -41,6 +41,10 @@ import FormFillerScreen from "./src/screens/FormFillerScreen";
 import GoalsScreen from "./src/screens/GoalsScreen";
 import ExpensesScreen from "./src/screens/ExpensesScreen";
 import FamilyScreen from "./src/screens/FamilyScreen";
+import SchemesScreen from "./src/screens/SchemesScreen";
+import InsuranceGapScreen from "./src/screens/InsuranceGapScreen";
+import MedicalRecordsScreen from "./src/screens/MedicalRecordsScreen";
+import LegalRightsScreen from "./src/screens/LegalRightsScreen";
 import SharedViewScreen from "./src/screens/SharedViewScreen";
 
 const Stack = createNativeStackNavigator();
@@ -124,6 +128,10 @@ function AppContent() {
             <Stack.Screen name="Goals" component={GoalsScreen} />
             <Stack.Screen name="Expenses" component={ExpensesScreen} />
             <Stack.Screen name="Family" component={FamilyScreen} />
+            <Stack.Screen name="Schemes" component={SchemesScreen} />
+            <Stack.Screen name="InsuranceGap" component={InsuranceGapScreen} />
+            <Stack.Screen name="MedicalRecords" component={MedicalRecordsScreen} />
+            <Stack.Screen name="LegalRights" component={LegalRightsScreen} />
             <Stack.Screen name="SharedView" component={SharedViewScreen} />
           </>
         )}

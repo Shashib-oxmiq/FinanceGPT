@@ -9,7 +9,7 @@
 > **Platforms**: `desktop` = Electron/web app · `mobile` = React Native iOS app
 >
 > Last updated: 2026-08-27
-> Total features registered: 200
+> Total features registered: 207
 
 ---
 
@@ -347,16 +347,30 @@
 
 ---
 
+## F-LIFE2 · Life Dimension Expansion (Round 2)
+
+| ID | Feature | Desktop | Mobile | Status | Notes |
+|----|---------|---------|--------|--------|-------|
+| F-201 | Government Scheme Discovery & Eligibility Checker | missing | active | active | 30+ schemes, profile-based eligibility, categories, detail modal |
+| F-202 | Insurance Gap Analysis | missing | active | active | Protection score, shortfall calc, urgency-ranked gaps, covered list |
+| F-203 | Document Expiry Tracking | missing | active | active | Passport, DL, RC, insurance, PUC, FSSAI expiries with urgency alerts |
+| F-204 | Medical Records Timeline | missing | active | active | Prescriptions, labs, vaccinations, diagnoses, allergies, emergency info |
+| F-205 | Legal Rights in Simple Language | missing | active | active | Consumer, tenant, employee, women, traffic, RTI, property rights |
+| F-206 | AI Memory Across Sessions | missing | active | active | Persistent memory table, auto-extraction, memory context in AI prompt |
+| F-207 | Smart Reminders Linked to Docs | missing | active | active | Context-aware: doc expiry, premiums, goal contributions, tax deadlines |
+
+---
+
 ## Summary Statistics
 
 | Metric | Count |
 |--------|-------|
-| Total features registered | 200 |
+| Total features registered | 207 |
 | Active on both platforms | 115 |
 | Desktop-only (active) | 38 |
-| Mobile-only (active) | 32 |
+| Mobile-only (active) | 39 |
 | Missing on mobile | 25 |
-| Missing on desktop | 20 |
+| Missing on desktop | 27 |
 | Partial | 5 |
 | Deprecated | 7 |
 
@@ -419,6 +433,7 @@
 | 2026-08-27 | F-131: Life event guide (covered by conversational AI F-182/F-184) | LivAgent |
 | 2026-08-27 | F-159: Profile completeness score (progress bar + guidance) | LivAgent |
 | 2026-08-27 | F-191 to F-200: 10 next-generation features added (Health Score, Daily Briefing, Voice Input, Goal Planning, Emergency Access, Proactive Notifications, Receipt Scanner, Family Vault, WhatsApp framework, Offline AI framework) | LivAgent |
+| 2026-08-27 | F-201 to F-207: 7 life-dimension expansion features (Govt Schemes, Insurance Gap Analysis, Document Expiry, Medical Records, Legal Rights, AI Memory, Smart Reminders) | LivAgent |
 
 ---
 

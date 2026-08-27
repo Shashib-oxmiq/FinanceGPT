@@ -51,9 +51,11 @@ export default function DashboardScreen({ navigation }) {
     { label: t("nav.insurance"), icon: "shield-checkmark", screen: "Insurance" },
     { label: t("nav.vault"), icon: "folder", screen: "Vault" },
     { label: t("nav.reminders"), icon: "notifications", screen: "Reminders" },
-    { label: t("nav.loan_prep"), icon: "document-text", screen: "Forms" },
+    { label: "Schemes", icon: "business", screen: "Schemes" },
     { label: "Goals", icon: "flag", screen: "Goals" },
     { label: "Expenses", icon: "receipt", screen: "Expenses" },
+    { label: "Medical", icon: "medkit", screen: "MedicalRecords" },
+    { label: "Rights", icon: "scale", screen: "LegalRights" },
     { label: "Family", icon: "people", screen: "Family" },
     { label: t("nav.profile"), icon: "person", screen: "Profile" },
   ];
