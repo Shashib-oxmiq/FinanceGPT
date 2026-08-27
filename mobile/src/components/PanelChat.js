@@ -9,6 +9,7 @@ import { useLanguage } from "../contexts/LanguageContext";
 import { streamChat, buildSystemPrompt } from "../services/ai";
 import { api } from "../services/api";
 import { getMemoryContext, autoExtractMemories } from "../services/aiMemory";
+import { ChatVizMessage } from "./ChatViz";
 import { theme } from "../theme";
 
 const CONTEXT_HINTS = {
@@ -119,7 +120,11 @@ export default function PanelChat({ context, title }) {
 
   const renderMsg = ({ item }) => (
     <View style={[styles.msg, item.role === "user" ? styles.msgUser : styles.msgAI]}>
-      <Text style={item.role === "user" ? styles.msgUserText : styles.msgAIText}>{item.content}</Text>
+      {item.role === "assistant" ? (
+        <ChatVizMessage content={item.content} textStyle={styles.msgAIText} />
+      ) : (
+        <Text style={styles.msgUserText}>{item.content}</Text>
+      )}
     </View>
   );
 

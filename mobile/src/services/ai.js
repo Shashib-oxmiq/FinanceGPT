@@ -627,6 +627,45 @@ export async function buildSystemPrompt(user, history, langCode) {
     `Teach at the user's level — beginner, intermediate, or advanced based on their questions.\n` +
     `=== END LITERACY ===\n\n` +
 
+    // ═══ VISUALIZATIONS ═══
+    `=== VISUALIZATION MARKERS (IMPORTANT — USE THESE PROACTIVELY) ===\n` +
+    `You can embed rich visualizations in your responses using markers. The app parses these and renders ` +
+    `charts, diagrams, tables, stat cards, progress bars, comparison cards, timelines, and callouts inline. ` +
+    `ALWAYS use visualizations when they make information clearer. Do not just describe numbers in text — ` +
+    `show them as charts, tables, or stat cards.\n\n` +
+    `Available markers (place in your response text, they render as visuals):\n\n` +
+    `1. BAR CHART: [CHART:{"type":"bar","title":"Portfolio Allocation","data":[{"label":"Equity","value":800000,"color":"#3b82f6"},{"label":"FD","value":530000,"color":"#f59e0b"},{"label":"Gold","value":128000,"color":"#eab308"}]}]\n` +
+    `   Use for: investment allocation, expense breakdown, income sources, portfolio comparison.\n\n` +
+    `2. PIE CHART: [CHART:{"type":"pie","title":"Asset Allocation","data":[{"label":"Equity","value":53,"color":"#3b82f6"},{"label":"Debt","value":35,"color":"#10b981"},{"label":"Gold","value":8,"color":"#f59e0b"},{"label":"Crypto","value":4,"color":"#ef4444"}]}]\n` +
+    `   Use for: percentage breakdowns, allocation analysis, insurance coverage split.\n\n` +
+    `3. LINE CHART: [CHART:{"type":"line","title":"Net Worth Trend","data":[{"label":"Jan","value":1100000},{"label":"Feb","value":1150000},{"label":"Mar","value":1220000}],"color":"#10b981"}]\n` +
+    `   Use for: trends over time, growth projections, cash flow timeline.\n\n` +
+    `4. MERMAID DIAGRAM: [MERMAID:graph TD; A[Salary Income] --> B[Tax Calculation]; B --> C{Regime?}; C -->|New| D[Rs.97K]; C -->|Old| E[Rs.2L]; D --> F[Take Home]; E --> F]\n` +
+    `   Use for: decision trees, process flows, org charts, tax flow diagrams, goal dependencies.\n` +
+    `   Valid mermaid types: graph TD (top-down), graph LR (left-right), flowchart, sequenceDiagram, pie, gitgraph.\n` +
+    `   Keep diagrams simple (max 10 nodes) and use semicolons to separate statements.\n\n` +
+    `5. TABLE: [TABLE:{"title":"Tax Comparison","headers":["Regime","Taxable","Tax","Take Home"],"rows":[["New","14.25L","97.5K","14.03L"],["Old","12.75L","2.03L","12.97L"]]}]\n` +
+    `   Use for: side-by-side comparisons, tax breakdowns, investment summaries, deduction lists.\n\n` +
+    `6. STAT CARD: [STAT:{"label":"Net Worth","value":"Rs.15.4L","icon":"wallet","color":"#10b981","subtitle":"Up 18% this year"}]\n` +
+    `   Use for: key metrics, summary numbers, quick stats. Icons: wallet,money,tax,health,investment,insurance,home,education,retirement,goal,warning,info,success,danger,chart,calendar,time,user,family,document.\n\n` +
+    `7. PROGRESS BAR: [PROGRESS:{"label":"80C Utilization","percent":80,"color":"#10b981","target":"Rs.1.5L limit"}]\n` +
+    `   Use for: goal progress, deduction utilization, budget tracking, savings rate.\n\n` +
+    `8. COMPARISON CARD: [COMPARE:{"title":"Old vs New Regime","leftLabel":"Old","leftValue":"Rs.2.03L","rightLabel":"New","rightValue":"Rs.97K","better":"right","note":"New saves Rs.1.05L"}]\n` +
+    `   Use for: before/after, option A vs B, regime comparison, scenario analysis.\n\n` +
+    `9. TIMELINE: [TIMELINE:{"title":"Tax Calendar","events":[{"date":"Jun 15","title":"Advance Tax Q1","desc":"Pay 15% of estimated tax"},{"date":"Jul 31","title":"ITR Filing Deadline","desc":"File your return"}]}]\n` +
+    `   Use for: upcoming deadlines, payment schedules, goal milestones, tax calendar.\n\n` +
+    `10. CALLOUT: [CALLOUT:{"type":"warning","title":"Deadline Approaching","text":"Your ITR filing deadline is in 30 days. Start gathering documents now."}]\n` +
+    `    Types: info, warning, success, danger.\n` +
+    `    Use for: alerts, important notices, tips, deadline reminders.\n\n` +
+    `RULES:\n` +
+    `- Use 1-3 visualizations per response, not more. Text context around them is important.\n` +
+    `- All monetary values in Rs. prefix (not the unicode symbol).\n` +
+    `- Colors: use hex codes. Blue=#3b82f6, Green=#10b981, Amber=#f59e0b, Red=#ef4444, Purple=#8b5cf6, Pink=#ec4899.\n` +
+    `- Charts need at least 2 data points. Keep data realistic from user's actual profile.\n` +
+    `- For tables, keep rows under 8. For charts, keep data points under 10.\n` +
+    `- Mermaid diagrams: use semicolons between statements, keep under 10 nodes.\n` +
+    `=== END VISUALIZATIONS ===\n\n` +
+
     // ═══ USER FINANCIAL PROFILE — ALL DATA ═══
     `=== USER FINANCIAL PROFILE (REAL DATA — USE THIS, DON'T ASK THE USER) ===\n` +
     (investments.length > 0 ? `INVESTMENTS:\n${invList}\n\n` : "") +

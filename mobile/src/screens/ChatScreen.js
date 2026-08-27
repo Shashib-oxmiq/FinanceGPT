@@ -20,6 +20,7 @@ import { getDailyBriefing } from "../services/briefing";
 import { startListening, stopListening, isVoiceSupported, getIsListening } from "../services/voice";
 import { getMemoryContext, processMemoryMarkers, autoExtractMemories } from "../services/aiMemory";
 import LanguageSwitcher from "../components/LanguageSwitcher";
+import { ChatVizMessage } from "../components/ChatViz";
 import { theme } from "../theme";
 
 const EXAMPLES = [
@@ -487,7 +488,11 @@ export default function ChatScreen({ navigation }) {
           <View style={styles.msgAvatar}><Ionicons name="chatbubble-ellipses" size={14} color={theme.primary} /></View>
         )}
         <View style={{ flex: 1 }}>
-          <Text style={item.role === "user" ? styles.msgUserText : styles.msgAssistantText}>{item.content}</Text>
+          {item.role === "assistant" ? (
+            <ChatVizMessage content={item.content} textStyle={styles.msgAssistantText} />
+          ) : (
+            <Text style={styles.msgUserText}>{item.content}</Text>
+          )}
           {item.role === "assistant" && item.content && (
             <TouchableOpacity style={styles.speakBtn} onPress={() => speak(item.content, lang)}>
               <Ionicons name="volume-medium" size={14} color={theme.muted} />
