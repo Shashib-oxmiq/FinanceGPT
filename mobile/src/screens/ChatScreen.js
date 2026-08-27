@@ -10,10 +10,11 @@ import { useLanguage } from "../contexts/LanguageContext";
 import { api } from "../services/api";
 import { streamChat, buildSystemPrompt } from "../services/ai";
 import { setApiKey } from "../services/ai";
-import { SecureStoreShim } from "../services/platform";
+import { SecureStoreShim, pickDocument } from "../services/platform";
 import { generateDocumentText, generateDocumentObject, downloadDocument, getTemplate } from "../services/docGen";
 import { getFormById } from "../services/formsData";
 import DocumentCard from "../components/DocumentCard";
+import { speak, stopSpeaking } from "../services/tts";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import { theme } from "../theme";
 
@@ -287,7 +288,15 @@ export default function ChatScreen({ navigation }) {
         {item.role === "assistant" && (
           <View style={styles.msgAvatar}><Ionicons name="chatbubble-ellipses" size={14} color={theme.primary} /></View>
         )}
-        <Text style={item.role === "user" ? styles.msgUserText : styles.msgAssistantText}>{item.content}</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={item.role === "user" ? styles.msgUserText : styles.msgAssistantText}>{item.content}</Text>
+          {item.role === "assistant" && item.content && (
+            <TouchableOpacity style={styles.speakBtn} onPress={() => speak(item.content, lang)}>
+              <Ionicons name="volume-medium" size={14} color={theme.muted} />
+              <Text style={styles.speakBtnText}>Listen</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     );
   };
@@ -481,6 +490,16 @@ export default function ChatScreen({ navigation }) {
         {/* Input bar */}
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={0}>
           <View style={styles.inputBar}>
+            <TouchableOpacity style={styles.attachBtn} onPress={async () => {
+              try {
+                const result = await pickDocument();
+                if (result.canceled) return;
+                const asset = result.assets[0];
+                setInput(prev => prev + (prev ? "\n" : "") + `[Attached: ${asset.name}]`);
+              } catch (e) { console.warn(e); }
+            }}>
+              <Ionicons name="attach" size={20} color={theme.muted} />
+            </TouchableOpacity>
             <TextInput
               style={styles.input}
               placeholder={t("chat.placeholder")}
@@ -569,11 +588,14 @@ const styles = StyleSheet.create({
   msgAvatar: { width: 24, height: 24, borderRadius: 8, backgroundColor: theme.primary + "15", justifyContent: "center", alignItems: "center", alignSelf: "flex-start" },
   msgAssistantText: { flex: 1, color: theme.text, fontSize: 14, lineHeight: 20 },
   msgDocWrap: { alignSelf: "stretch", marginVertical: 4 },
+  speakBtn: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 8, alignSelf: "flex-start" },
+  speakBtnText: { fontSize: 11, color: theme.muted, fontWeight: "500" },
   // ── Toast ──
   toast: { position: "absolute", top: 60, left: 0, right: 0, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 8, marginHorizontal: 40, backgroundColor: theme.card, borderRadius: 12, borderWidth: 1, borderColor: theme.border, elevation: 4, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
   toastText: { fontSize: 13, color: theme.accent, fontWeight: "500" },
   // ── Input ──
   inputBar: { flexDirection: "row", alignItems: "flex-end", paddingHorizontal: 12, paddingVertical: 8, gap: 8, borderTopWidth: 1, borderTopColor: theme.border, backgroundColor: theme.card },
+  attachBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: "center", alignItems: "center", borderWidth: 1, borderColor: theme.border },
   input: { flex: 1, backgroundColor: theme.input, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, fontSize: 15, color: theme.text, maxHeight: 100, borderWidth: 1, borderColor: theme.border },
   sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: theme.primary, justifyContent: "center", alignItems: "center" },
 });

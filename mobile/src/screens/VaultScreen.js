@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { pickDocument } from "../services/platform";
+import { shareDocument } from "../services/docGen";
 import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
 import { api } from "../services/api";
@@ -87,6 +88,9 @@ export default function VaultScreen({ navigation }) {
                 <Text style={styles.cardName} numberOfLines={1}>{item.original_filename}</Text>
                 <Text style={styles.cardMeta}>{item.category} · {(item.size / 1024).toFixed(0)} KB</Text>
               </View>
+              <TouchableOpacity onPress={() => shareDocument({ content: item.original_filename + " (from Everkin Vault)", title: item.original_filename })} style={styles.shareBtn}>
+                <Ionicons name="share-social-outline" size={16} color={theme.primary} />
+              </TouchableOpacity>
               <TouchableOpacity onPress={() => del(item.document_id)}><Ionicons name="trash-outline" size={16} color={theme.destructive} /></TouchableOpacity>
             </View>
           )}
@@ -116,5 +120,6 @@ const styles = StyleSheet.create({
   cardInfo: { flex: 1 },
   cardName: { fontSize: 14, fontWeight: "600", color: theme.text },
   cardMeta: { fontSize: 12, color: theme.muted, marginTop: 2 },
+  shareBtn: { padding: 4 },
   fab: { position: "absolute", bottom: 20, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: theme.primary, justifyContent: "center", alignItems: "center", elevation: 8, shadowColor: "#000", shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } },
 });

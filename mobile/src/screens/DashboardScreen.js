@@ -13,6 +13,7 @@ export default function DashboardScreen({ navigation }) {
   const { user } = useAuth();
   const [summary, setSummary] = useState(null);
   const [reminders, setReminders] = useState([]);
+  const [investments, setInvestments] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
@@ -22,6 +23,8 @@ export default function DashboardScreen({ navigation }) {
       setSummary(s);
       const r = await api.getReminders(user.user_id);
       setReminders(r.reminders || []);
+      const inv = await api.getInvestments(user.user_id);
+      setInvestments(inv);
     } catch (e) { console.error(e); }
   }, [user]);
 
@@ -79,6 +82,18 @@ export default function DashboardScreen({ navigation }) {
               <Ionicons name="notifications" size={16} color={theme.primary} />
               <Text style={styles.reminderText}>{r.title}</Text>
               <Text style={styles.reminderDate}>{r.due_date}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+      {investments.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Recent Investments</Text>
+          {investments.slice(0, 3).map((inv) => (
+            <View key={inv.investment_id} style={styles.reminderItem}>
+              <Ionicons name="trending-up" size={16} color={theme.accent} />
+              <Text style={styles.reminderText}>{inv.name}</Text>
+              <Text style={styles.reminderDate}>{formatMoney(inv.current_value)}</Text>
             </View>
           ))}
         </View>

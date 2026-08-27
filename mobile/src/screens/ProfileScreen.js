@@ -42,6 +42,26 @@ export default function ProfileScreen({ navigation }) {
         <Text style={styles.profileEmail}>{user?.email}</Text>
       </View>
 
+      {/* Profile completeness */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Profile Completeness</Text>
+        {(() => {
+          const fields = [user?.name, user?.email, phone, dob, address, income];
+          const filled = fields.filter((f) => f && String(f).trim()).length;
+          const pct = Math.round((filled / fields.length) * 100);
+          return (
+            <View>
+              <View style={styles.completenessBar}>
+                <View style={[styles.completenessFill, { width: `${pct}%` }]} />
+              </View>
+              <Text style={styles.completenessText}>
+                {pct === 100 ? "✅ Your profile is complete! The AI can give you better advice with complete info." : `${pct}% complete — fill in more details for better AI assistance.`}
+              </Text>
+            </View>
+          );
+        })()}
+      </View>
+
       {/* Personal Info */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Personal Info</Text>
@@ -87,6 +107,9 @@ const styles = StyleSheet.create({
   section: { paddingHorizontal: 20, paddingVertical: 12 },
   sectionTitle: { fontSize: 16, fontWeight: "700", color: theme.text, marginBottom: 8 },
   sectionHint: { fontSize: 12, color: theme.muted, marginBottom: 4 },
+  completenessBar: { height: 8, backgroundColor: theme.border, borderRadius: 4, marginBottom: 8, overflow: "hidden" },
+  completenessFill: { height: 8, backgroundColor: theme.accent, borderRadius: 4 },
+  completenessText: { fontSize: 12, color: theme.muted, lineHeight: 18 },
   input: { backgroundColor: theme.input, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: theme.text, marginBottom: 10, borderWidth: 1, borderColor: theme.border },
   saveBtn: { backgroundColor: theme.primary, borderRadius: 12, paddingVertical: 14, alignItems: "center", marginTop: 8 },
   saveText: { color: "#fff", fontSize: 16, fontWeight: "700" },

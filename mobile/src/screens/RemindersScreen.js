@@ -9,6 +9,7 @@ import PanelChat from "../components/PanelChat";
 import { theme } from "../theme";
 
 const EMPTY = { title: "", description: "", due_date: "", priority: "medium", category: "" };
+const CATEGORIES = ["", "Tax", "Insurance", "Investment", "Bill", "Family", "Health", "Work", "Property", "Other"];
 
 export default function RemindersScreen({ navigation }) {
   const { t } = useLanguage();
@@ -59,7 +60,7 @@ export default function RemindersScreen({ navigation }) {
               <Ionicons name={item.completed ? "checkmark-circle" : "ellipse-outline"} size={22} color={item.completed ? theme.accent : theme.primary} />
               <View style={styles.cardInfo}>
                 <Text style={[styles.cardTitle, item.completed && styles.cardDone]}>{item.title}</Text>
-                <Text style={styles.cardDate}>{item.due_date} · {item.priority}</Text>
+                <Text style={styles.cardDate}>{item.due_date} · {item.priority}{item.category ? ` · ${item.category}` : ""}</Text>
               </View>
               <TouchableOpacity onPress={() => del(item.reminder_id)}><Ionicons name="trash-outline" size={16} color={theme.destructive} /></TouchableOpacity>
             </TouchableOpacity>
@@ -75,6 +76,14 @@ export default function RemindersScreen({ navigation }) {
             <TextInput style={styles.input} placeholder="Title" placeholderTextColor={theme.muted} value={form.title} onChangeText={(v) => setForm({ ...form, title: v })} />
             <TextInput style={styles.input} placeholder="Due Date (YYYY-MM-DD)" placeholderTextColor={theme.muted} value={form.due_date} onChangeText={(v) => setForm({ ...form, due_date: v })} />
             <TextInput style={styles.input} placeholder="Description" placeholderTextColor={theme.muted} value={form.description} onChangeText={(v) => setForm({ ...form, description: v })} multiline />
+            <Text style={styles.pickerLabel}>Category</Text>
+            <View style={styles.pickerRow}>
+              {CATEGORIES.map((c) => (
+                <TouchableOpacity key={c || "none"} style={[styles.pickerChip, form.category === c && styles.pickerChipActive]} onPress={() => setForm({ ...form, category: c })}>
+                  <Text style={[styles.pickerChipText, form.category === c && styles.pickerChipTextActive]}>{c || "None"}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
             <View style={styles.modalButtons}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setShow(false)}><Text style={styles.cancelText}>{t("common.cancel")}</Text></TouchableOpacity>
               <TouchableOpacity style={styles.saveBtn} onPress={save}><Text style={styles.saveText}>{t("button.save")}</Text></TouchableOpacity>
@@ -110,4 +119,10 @@ const styles = StyleSheet.create({
   cancelText: { color: theme.textSecondary, fontSize: 15, fontWeight: "600" },
   saveBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: theme.primary, alignItems: "center" },
   saveText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+  pickerLabel: { fontSize: 13, color: theme.muted, marginBottom: 6, marginTop: 4 },
+  pickerRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 10 },
+  pickerChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, backgroundColor: theme.input, borderWidth: 1, borderColor: theme.border },
+  pickerChipActive: { backgroundColor: theme.primary, borderColor: theme.primary },
+  pickerChipText: { fontSize: 12, color: theme.textSecondary },
+  pickerChipTextActive: { color: "#fff", fontWeight: "600" },
 });
