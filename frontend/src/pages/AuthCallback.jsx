@@ -30,7 +30,7 @@ export default function AuthCallback() {
         if (data.token) localStorage.setItem("vault_token", data.token);
         setUser(data.user);
         window.history.replaceState(null, "", window.location.pathname);
-        navigate("/dashboard");
+        navigate("/chat");
       } catch {
         navigate("/login");
       }

@@ -19,7 +19,7 @@ export default function Login() {
       const { data } = await api.post("/auth/login", { email, password });
       login(data);
       toast.success("Welcome back");
-      navigate("/dashboard");
+      navigate("/chat");
     } catch (err) {
       toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
     } finally {
@@ -27,9 +27,40 @@ export default function Login() {
     }
   };
 
-  const googleLogin = () => {
-    // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
-    const redirectUrl = window.location.origin + "/dashboard";
+  const googleLogin = async () => {
+    // In Electron: open OAuth in system browser, listen for session_id via IPC
+    if (typeof window !== "undefined" && window.electronAPI?.googleLogin) {
+      setBusy(true);
+      try {
+        await window.electronAPI.googleLogin();
+        // Listen for the session_id relayed back from the main process
+        const stop = window.electronAPI.onGoogleSessionId(async (sessionId) => {
+          if (!sessionId) { toast.error("Google sign-in failed"); setBusy(false); return; }
+          try {
+            const { data } = await api.post(
+              "/auth/google/session",
+              {},
+              { headers: { "X-Session-ID": sessionId } }
+            );
+            if (data.token) localStorage.setItem("vault_token", data.token);
+            login(data);
+            toast.success("Welcome back");
+            navigate("/chat");
+          } catch {
+            toast.error("Failed to complete Google sign-in");
+          } finally {
+            setBusy(false);
+            stop();
+          }
+        });
+      } catch {
+        toast.error("Failed to open Google sign-in");
+        setBusy(false);
+      }
+      return;
+    }
+    // Browser fallback: original redirect flow
+    const redirectUrl = window.location.origin + "/chat";
     window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
   };
 
@@ -38,12 +69,12 @@ export default function Login() {
       <form onSubmit={submit} className="space-y-4">
         <Field label="Email" type="email" value={email} onChange={setEmail} testid="login-email" />
         <Field label="Password" type="password" value={password} onChange={setPassword} testid="login-password" />
-        <button type="submit" disabled={busy} data-testid="login-submit" className="w-full bg-primary text-primary-foreground py-3 rounded-md font-semibold hover:opacity-90 transition-opacity disabled:opacity-60">
+        <button type="submit" disabled={busy} data-testid="login-submit" className="w-full bg-primary text-primary-foreground py-3 rounded-xl font-semibold hover:opacity-90 hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-none">
           {busy ? "Signing in…" : "Sign in"}
         </button>
       </form>
       <Divider />
-      <button onClick={googleLogin} data-testid="google-login" className="w-full flex items-center justify-center gap-2 border border-border py-3 rounded-md font-medium hover:bg-secondary transition-colors">
+      <button onClick={googleLogin} data-testid="google-login" className="w-full flex items-center justify-center gap-2 border border-border py-3 rounded-xl font-medium hover:bg-secondary hover:shadow-sm transition-all">
         <GoogleLogo size={18} weight="bold" /> Continue with Google
       </button>
       <p className="text-sm text-muted-foreground text-center mt-6">
@@ -93,7 +124,7 @@ export function Field({ label, type, value, onChange, testid }) {
         value={value}
         data-testid={testid}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1.5 w-full bg-background border border-input rounded-md px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
+        className="mt-1.5 w-full bg-background border border-input rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
       />
     </div>
   );

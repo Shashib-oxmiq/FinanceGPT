@@ -4,8 +4,12 @@ import { api, API } from "../lib/api";
 import { Page, PageHeader } from "../components/Page";
 import { Package, Sparkle, DownloadSimple, CheckSquare, Square } from "@phosphor-icons/react";
 import { CATEGORY_LABELS as CAT_LABELS } from "../lib/categories";
+import SmartAddBar from "../components/SmartAddBar";
+import PanelChat from "../components/PanelChat";
+import { useLanguage } from "../contexts/LanguageContext";
 
 export default function Bundler() {
+  const { t } = useLanguage();
   const [purpose, setPurpose] = useState("");
   const [suggestion, setSuggestion] = useState(null);
   const [docs, setDocs] = useState([]);
@@ -67,22 +71,37 @@ export default function Bundler() {
     <Page>
       <PageHeader
         testid="bundler-header"
-        title="Document Bundler"
-        subtitle="Tell us the goal — applying to a company, a visa, a loan — and we assemble the right documents into one .zip."
+        title={t("page.bundler.title")}
+        subtitle={t("page.bundler.subtitle")}
       />
 
-      <div className="border border-border rounded-lg p-6 bg-card mb-6">
+      <SmartAddBar
+        target="bundle"
+        onResult={(params) => {
+          if (params.purpose) setPurpose(params.purpose);
+          if (params.suggested_name) setName(params.suggested_name);
+          toast.info("Purpose filled by AI — click Suggest documents");
+        }}
+      />
+
+      <PanelChat
+        contextLabel="Document Bundler"
+        systemHint="The user is on the Document Bundler page. Help them figure out what documents they need for their specific purpose (visa, loan, job application, etc.), which of their uploaded documents are relevant, and answer questions about bundling and sharing."
+        storageKey="panel_chat_bundler"
+      />
+
+      <div className="border border-border rounded-2xl p-6 bg-card mb-6">
         <label className="text-[11px] tracking-[0.1em] uppercase text-muted-foreground">What are you preparing for?</label>
         <div className="flex flex-col sm:flex-row gap-2 mt-2">
-          <input value={purpose} data-testid="bundle-purpose" onChange={(e) => setPurpose(e.target.value)} placeholder="e.g. Applying for a mortgage at ABC Bank" className="flex-1 bg-background border border-input rounded-md px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-          <button onClick={suggest} disabled={busy} data-testid="suggest-bundle" className="flex items-center justify-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-md text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60">
-            <Sparkle size={16} weight="duotone" /> {busy ? "Thinking…" : "Suggest documents"}
+          <input value={purpose} data-testid="bundle-purpose" onChange={(e) => setPurpose(e.target.value)} placeholder="e.g. Applying for a mortgage at ABC Bank" className="flex-1 bg-background border border-input rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+          <button onClick={suggest} disabled={busy} data-testid="suggest-bundle" className="flex items-center justify-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60">
+            <Sparkle size={16} weight="duotone" /> {busy ? t("button.thinking") : t("button.suggest_documents")}
           </button>
         </div>
       </div>
 
       {suggestion && (
-        <div className="border border-border rounded-lg p-6 bg-card mb-6 animate-fade-up" data-testid="suggestion-panel">
+        <div className="border border-border rounded-2xl p-6 bg-card mb-6 animate-fade-up" data-testid="suggestion-panel">
           <p className="text-sm text-muted-foreground mb-2">{suggestion.summary}</p>
           <p className="text-xs text-accent mb-4" data-testid="autoselect-hint">{selected.size} matching document{selected.size !== 1 ? "s" : ""} auto-selected below — tap a row to include or exclude.</p>
           <div className="space-y-2">
@@ -99,14 +118,14 @@ export default function Bundler() {
       )}
 
       <div className="grid lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 border border-border rounded-lg p-6 bg-card">
+        <div className="lg:col-span-2 border border-border rounded-2xl p-6 bg-card">
           <h3 className="font-heading text-lg font-bold mb-4">Select documents</h3>
           {docs.length === 0 ? (
             <p className="text-sm text-muted-foreground">No documents yet — upload some in the Vault first.</p>
           ) : (
             <div className="space-y-1">
               {docs.map((d) => (
-                <button key={d.document_id} onClick={() => toggle(d.document_id)} data-testid={`select-doc-${d.document_id}`} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-secondary text-left transition-colors">
+                <button key={d.document_id} onClick={() => toggle(d.document_id)} data-testid={`select-doc-${d.document_id}`} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-secondary text-left transition-colors">
                   {selected.has(d.document_id) ? <CheckSquare size={18} weight="fill" className="text-primary shrink-0" /> : <Square size={18} className="text-muted-foreground shrink-0" />}
                   <span className="text-sm truncate flex-1">{d.original_filename}</span>
                   <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{CAT_LABELS[d.category] || d.category}</span>
@@ -116,12 +135,12 @@ export default function Bundler() {
           )}
         </div>
 
-        <div className="border border-border rounded-lg p-6 bg-card h-fit">
+        <div className="border border-border rounded-2xl p-6 bg-card h-fit">
           <Package size={28} weight="duotone" className="text-primary mb-3" />
           <label className="text-[11px] tracking-[0.1em] uppercase text-muted-foreground">Bundle name</label>
-          <input value={name} data-testid="bundle-name" onChange={(e) => setName(e.target.value)} className="mt-1 w-full bg-background border border-input rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+          <input value={name} data-testid="bundle-name" onChange={(e) => setName(e.target.value)} className="mt-1 w-full bg-background border border-input rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
           <p className="text-sm text-muted-foreground mt-4 tabular">{selected.size} document{selected.size !== 1 ? "s" : ""} selected</p>
-          <button onClick={createBundle} disabled={creating} data-testid="create-bundle" className="mt-3 w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground py-3 rounded-md font-semibold hover:opacity-90 transition-opacity disabled:opacity-60">
+          <button onClick={createBundle} disabled={creating} data-testid="create-bundle" className="mt-3 w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground py-3 rounded-xl font-semibold hover:opacity-90 transition-opacity disabled:opacity-60">
             <DownloadSimple size={16} weight="bold" /> {creating ? "Building…" : "Build & download .zip"}
           </button>
         </div>

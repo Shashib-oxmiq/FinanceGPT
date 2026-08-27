@@ -18,19 +18,19 @@ export default function Modal({ open, onClose, title, children, testid }) {
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 bg-black/60 overflow-y-auto"
+      className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
     >
       <div
-        className="bg-card border border-border rounded-lg w-full max-w-2xl my-8 sm:my-0 max-h-[90vh] overflow-y-auto scroll-thin p-6 animate-fade-up"
+        className="bg-card border border-border rounded-3xl w-full max-w-2xl my-8 sm:my-0 max-h-[90vh] overflow-y-auto scroll-thin p-6 shadow-2xl animate-fade-up"
         onClick={(e) => e.stopPropagation()}
         data-testid={testid}
       >
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-heading text-xl font-bold">{title}</h3>
-          <button onClick={onClose} className="p-1" data-testid="modal-close"><X size={20} /></button>
+          <button onClick={onClose} className="p-2 rounded-xl hover:bg-secondary transition-colors" data-testid="modal-close"><X size={20} /></button>
         </div>
         {children}
       </div>

@@ -23,6 +23,19 @@ import Reminders from "./pages/Reminders";
 import Gmail from "./pages/Gmail";
 import SharedView from "./pages/SharedView";
 
+// Chat is the main view — it has its own sidebar, so it does NOT use Layout.
+function ProtectedChat() {
+  const { user, loading } = useAuth();
+  if (loading || user === null)
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground">
+        <span className="animate-pulse tracking-[0.3em] uppercase text-xs">Securing session…</span>
+      </div>
+    );
+  if (!user) return <Navigate to="/login" replace />;
+  return <Chat />;
+}
+
 function Protected({ children }) {
   const { user, loading } = useAuth();
   if (loading || user === null)
@@ -44,8 +57,10 @@ function AppRouter() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/share/:token" element={<SharedView />} />
+      {/* Chat is the main view — full screen, own sidebar */}
+      <Route path="/chat" element={<ProtectedChat />} />
+      {/* Other pages use the Layout shell with sidebar */}
       <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
-      <Route path="/chat" element={<Protected><Chat /></Protected>} />
       <Route path="/profile" element={<Protected><Profile /></Protected>} />
       <Route path="/insurance" element={<Protected><Insurance /></Protected>} />
       <Route path="/insights" element={<Protected><Insights /></Protected>} />
@@ -58,7 +73,8 @@ function AppRouter() {
       <Route path="/forms" element={<Protected><FormFiller /></Protected>} />
       <Route path="/bundler" element={<Protected><Bundler /></Protected>} />
       <Route path="/legacy" element={<Protected><Legacy /></Protected>} />
-      <Route path="*" element={<Navigate to="/" replace />} />
+      {/* Default authenticated route → Chat */}
+      <Route path="*" element={<Navigate to="/chat" replace />} />
     </Routes>
   );
 }

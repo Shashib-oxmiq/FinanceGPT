@@ -5,6 +5,9 @@ import { useTts } from "../lib/audio";
 import { Page, PageHeader } from "../components/Page";
 import { Plus, Trash, ShieldCheck, Sparkle, X, WarningCircle, CheckCircle, SpeakerHigh, Stop, FileMagnifyingGlass } from "@phosphor-icons/react";
 import Modal from "../components/Modal";
+import SmartAddBar from "../components/SmartAddBar";
+import PanelChat from "../components/PanelChat";
+import { useLanguage } from "../contexts/LanguageContext";
 
 const EMPTY = {
   policy_type: "life_term", provider: "", policy_number: "", sum_assured: "", premium_amount: "",
@@ -15,6 +18,7 @@ const EMPTY = {
 const TYPE_LABEL = (t) => t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
 export default function Insurance() {
+  const { t } = useLanguage();
   const [policies, setPolicies] = useState([]);
   const [types, setTypes] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -33,7 +37,7 @@ export default function Insurance() {
     try {
       const { data } = await api.post("/insurance/analyze", { insurance_type: guideType, document_id: guideDoc || null });
       setAnalysis(data);
-    } catch (e) { toast.error(e.response?.data?.detail || "Could not analyze policy"); }
+    } catch (e) { toast.error(e.response?.data?.detail || t("toast.failed")); }
     finally { setAnalyzing(false); }
   };
 
@@ -60,14 +64,14 @@ export default function Insurance() {
   const setF = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
   const add = async () => {
-    if (!form.provider) return toast.error("Provider is required");
+    if (!form.provider) return toast.error(t("toast.provider_required"));
     try {
       await api.post("/insurance", form);
-      toast.success("Policy added");
+      toast.success(t("toast.policy_added"));
       setForm(EMPTY);
       setShowForm(false);
       load();
-    } catch { toast.error("Failed to add policy"); }
+    } catch { toast.error(t("toast.failed_add")); }
   };
 
   const del = async (id) => {
@@ -80,7 +84,7 @@ export default function Insurance() {
     try {
       const { data } = await api.post("/insurance/review", { question: "" });
       setReview(data);
-    } catch { toast.error("Review failed"); }
+    } catch { toast.error(t("toast.review_failed")); }
     finally { setReviewing(false); }
   };
 
@@ -88,47 +92,55 @@ export default function Insurance() {
     <Page>
       <PageHeader
         testid="insurance-header"
-        title="Insurance Portfolio"
-        subtitle="Track every policy with nominees, riders and claim contacts — the details your family needs to actually file a claim."
+        title={t("page.insurance.title")}
+        subtitle={t("page.insurance.subtitle")}
         actions={
           <div className="flex gap-2">
-            <button onClick={runReview} disabled={reviewing} data-testid="ai-review" className="flex items-center gap-2 border border-border px-4 py-2.5 rounded-md text-sm font-semibold hover:bg-secondary transition-colors disabled:opacity-60">
-              <Sparkle size={16} weight="duotone" /> {reviewing ? "Analyzing…" : "AI Review"}
+            <button onClick={runReview} disabled={reviewing} data-testid="ai-review" className="flex items-center gap-2 border border-border px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-secondary transition-colors disabled:opacity-60">
+              <Sparkle size={16} weight="duotone" /> {reviewing ? t("button.analyzing") : t("button.ai_review")}
             </button>
-            <button onClick={() => setShowForm(true)} data-testid="add-policy" className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-md text-sm font-semibold hover:opacity-90 transition-opacity">
-              <Plus size={16} weight="bold" /> Add policy
+            <button onClick={() => setShowForm(true)} data-testid="add-policy" className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity">
+              <Plus size={16} weight="bold" /> {t("button.add_policy")}
             </button>
           </div>
         }
       />
 
+      <SmartAddBar target="insurance" onAdded={load} />
+
+      <PanelChat
+        contextLabel="Insurance Portfolio"
+        systemHint="The user is on the Insurance Portfolio page. Help them understand their policies, coverage gaps, premium schedules, nominee details, and answer questions about their insurance portfolio."
+        storageKey="panel_chat_insurance"
+      />
+
       {review && (
-        <div className="border border-border rounded-lg p-6 bg-card mb-6 animate-fade-up" data-testid="review-panel">
+        <div className="border border-border rounded-2xl p-6 bg-card mb-6 animate-fade-up" data-testid="review-panel">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-heading text-lg font-bold flex items-center gap-2"><Sparkle size={18} weight="duotone" className="text-primary" /> Portfolio Review</h3>
             <span className="font-heading text-3xl font-black tabular text-primary">{review.health_score}<span className="text-sm text-muted-foreground">/100</span></span>
           </div>
           <p className="text-sm text-muted-foreground mb-4">{review.summary}</p>
           <div className="grid md:grid-cols-3 gap-4 text-sm">
-            <ReviewList title="Gaps" items={review.gaps} icon={WarningCircle} color="text-[hsl(var(--warning))]" />
-            <ReviewList title="Recommendations" items={review.recommendations} icon={CheckCircle} color="text-accent" />
-            <ReviewList title="Corner Cases" items={review.corner_cases} icon={ShieldCheck} color="text-primary" />
+            <ReviewList title={t("section.gaps")} items={review.gaps} icon={WarningCircle} color="text-[hsl(var(--warning))]" />
+            <ReviewList title={t("section.recommendations")} items={review.recommendations} icon={CheckCircle} color="text-accent" />
+            <ReviewList title={t("section.corner_cases")} items={review.corner_cases} icon={ShieldCheck} color="text-primary" />
           </div>
         </div>
       )}
 
-      <div className="border border-border rounded-lg p-6 bg-card mb-6" data-testid="policy-guide">
+      <div className="border border-border rounded-2xl p-6 bg-card mb-6" data-testid="policy-guide">
         <h3 className="font-heading text-lg font-bold flex items-center gap-2 mb-1"><FileMagnifyingGlass size={18} weight="duotone" className="text-primary" /> Understand a Policy</h3>
         <p className="text-sm text-muted-foreground mb-4">Get a plain-English guide: what's covered (with conditions), what's not, corner cases, who to call during an incident, and what NOT to do — with voice playback.</p>
         <div className="flex flex-col sm:flex-row gap-2">
-          <select value={guideType} onChange={(e) => setGuideType(e.target.value)} data-testid="guide-type" className="bg-background border border-input rounded-md px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+          <select value={guideType} onChange={(e) => setGuideType(e.target.value)} data-testid="guide-type" className="bg-background border border-input rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
             {["health", "life", "auto", "home", "travel", "critical illness"].map((t) => <option key={t} value={t}>{t[0].toUpperCase() + t.slice(1)}</option>)}
           </select>
-          <select value={guideDoc} onChange={(e) => setGuideDoc(e.target.value)} data-testid="guide-doc" className="flex-1 bg-background border border-input rounded-md px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+          <select value={guideDoc} onChange={(e) => setGuideDoc(e.target.value)} data-testid="guide-doc" className="flex-1 bg-background border border-input rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
             <option value="">General guidance (no document)</option>
             {insDocs.map((d) => <option key={d.document_id} value={d.document_id}>{d.original_filename}</option>)}
           </select>
-          <button onClick={analyzePolicy} disabled={analyzing} data-testid="analyze-policy" className="flex items-center justify-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-md text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60">
+          <button onClick={analyzePolicy} disabled={analyzing} data-testid="analyze-policy" className="flex items-center justify-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60">
             <Sparkle size={16} weight="duotone" className={analyzing ? "animate-spin" : ""} /> {analyzing ? "Analyzing…" : "Analyze"}
           </button>
         </div>
@@ -137,35 +149,35 @@ export default function Insurance() {
           <div className="mt-6 animate-fade-up" data-testid="analysis-result">
             <div className="flex items-center justify-between mb-3">
               <p className="text-sm text-muted-foreground flex-1">{analysis.summary}</p>
-              <button onClick={speakGuide} data-testid="listen-policy" className={`flex items-center gap-2 border border-border px-3 py-2 rounded-md text-sm transition-colors shrink-0 ml-3 ${audioId === "policy" ? "text-primary border-primary" : "hover:bg-secondary"}`}>
+              <button onClick={speakGuide} data-testid="listen-policy" className={`flex items-center gap-2 border border-border px-3 py-2 rounded-xl text-sm transition-colors shrink-0 ml-3 ${audioId === "policy" ? "text-primary border-primary" : "hover:bg-secondary"}`}>
                 {audioId === "policy" ? <Stop size={16} weight="fill" /> : <SpeakerHigh size={16} weight="duotone" className={audioLoading === "policy" ? "animate-pulse" : ""} />}
                 {audioLoading === "policy" ? "Preparing…" : audioId === "policy" ? "Stop" : "Listen"}
               </button>
             </div>
             <div className="grid md:grid-cols-2 gap-4">
-              <GuideBox title="Covered (with conditions)" color="text-accent" items={(analysis.covered || []).map((c) => `${c.item}${c.conditions ? " — " + c.conditions : ""}`)} />
-              <GuideBox title="Not covered" color="text-destructive" items={analysis.not_covered} />
-              <GuideBox title="Corner cases to know" color="text-[hsl(var(--warning))]" items={analysis.corner_cases} />
-              <GuideBox title="Emergency numbers" color="text-primary" items={(analysis.emergency_numbers || []).map((e) => `${e.label}: ${e.number}`)} />
-              <GuideBox title="During an incident — DO" color="text-accent" items={analysis.dos} />
-              <GuideBox title="During an incident — DON'T" color="text-destructive" items={analysis.donts} />
+              <GuideBox title={t("ins.covered_conditions")} color="text-accent" items={(analysis.covered || []).map((c) => `${c.item}${c.conditions ? " — " + c.conditions : ""}`)} />
+              <GuideBox title={t("ins.not_covered")} color="text-destructive" items={analysis.not_covered} />
+              <GuideBox title={t("ins.corner_cases_know")} color="text-[hsl(var(--warning))]" items={analysis.corner_cases} />
+              <GuideBox title={t("ins.emergency_numbers")} color="text-primary" items={(analysis.emergency_numbers || []).map((e) => `${e.label}: ${e.number}`)} />
+              <GuideBox title={t("ins.during_incident_do")} color="text-accent" items={analysis.dos} />
+              <GuideBox title={t("ins.during_incident_dont")} color="text-destructive" items={analysis.donts} />
             </div>
             {(analysis.claim_steps || []).length > 0 && (
-              <div className="mt-4"><GuideBox title="How to claim" color="text-primary" items={analysis.claim_steps} /></div>
+              <div className="mt-4"><GuideBox title={t("ins.how_to_claim")} color="text-primary" items={analysis.claim_steps} /></div>
             )}
           </div>
         )}
       </div>
 
       {policies.length === 0 ? (
-        <div className="border border-dashed border-border rounded-lg p-16 text-center" data-testid="insurance-empty">
+        <div className="border border-dashed border-border rounded-2xl p-16 text-center" data-testid="insurance-empty">
           <ShieldCheck size={40} weight="duotone" className="text-muted-foreground mx-auto mb-4" />
           <p className="text-muted-foreground">No policies yet. Add your first policy to build your coverage map.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {policies.map((p) => (
-            <div key={p.policy_id} className="border border-border rounded-lg p-6 bg-card hover:-translate-y-1 transition-transform" data-testid={`policy-${p.policy_id}`}>
+            <div key={p.policy_id} className="border border-border rounded-2xl p-6 bg-card hover:-translate-y-1 transition-transform" data-testid={`policy-${p.policy_id}`}>
               <div className="flex items-start justify-between">
                 <div>
                   <span className="text-[10px] tracking-[0.2em] uppercase text-primary">{TYPE_LABEL(p.policy_type)}</span>
@@ -190,22 +202,22 @@ export default function Insurance() {
             <div className="grid md:grid-cols-2 gap-3">
               <Select label="Type" value={form.policy_type} onChange={(v) => setF("policy_type", v)} options={types} testid="form-policy-type" />
               <Input label="Provider *" value={form.provider} onChange={(v) => setF("provider", v)} testid="form-provider" />
-              <Input label="Policy number" value={form.policy_number} onChange={(v) => setF("policy_number", v)} testid="form-policy-number" />
-              <Input label="Sum assured" value={form.sum_assured} onChange={(v) => setF("sum_assured", v)} testid="form-sum-assured" />
-              <Input label="Premium amount" value={form.premium_amount} onChange={(v) => setF("premium_amount", v)} />
-              <Input label="Premium frequency" value={form.premium_frequency} onChange={(v) => setF("premium_frequency", v)} />
-              <Input label="Start date" value={form.start_date} onChange={(v) => setF("start_date", v)} />
-              <Input label="Maturity date" value={form.maturity_date} onChange={(v) => setF("maturity_date", v)} />
-              <Input label="Nominee name" value={form.nominee_name} onChange={(v) => setF("nominee_name", v)} testid="form-nominee" />
-              <Input label="Nominee relationship" value={form.nominee_relationship} onChange={(v) => setF("nominee_relationship", v)} />
-              <Input label="Claim contact" value={form.claim_contact} onChange={(v) => setF("claim_contact", v)} />
-              <Input label="Agent contact" value={form.agent_contact} onChange={(v) => setF("agent_contact", v)} />
+              <Input label={t("ins.policy_number")} value={form.policy_number} onChange={(v) => setF("policy_number", v)} testid="form-policy-number" />
+              <Input label={t("ins.sum_assured")} value={form.sum_assured} onChange={(v) => setF("sum_assured", v)} testid="form-sum-assured" />
+              <Input label={t("ins.premium_amount")} value={form.premium_amount} onChange={(v) => setF("premium_amount", v)} />
+              <Input label={t("ins.premium_frequency")} value={form.premium_frequency} onChange={(v) => setF("premium_frequency", v)} />
+              <Input label={t("ins.start_date")} value={form.start_date} onChange={(v) => setF("start_date", v)} />
+              <Input label={t("ins.maturity_date")} value={form.maturity_date} onChange={(v) => setF("maturity_date", v)} />
+              <Input label={t("ins.nominee_name")} value={form.nominee_name} onChange={(v) => setF("nominee_name", v)} testid="form-nominee" />
+              <Input label={t("ins.nominee_relationship")} value={form.nominee_relationship} onChange={(v) => setF("nominee_relationship", v)} />
+              <Input label={t("ins.claim_contact")} value={form.claim_contact} onChange={(v) => setF("claim_contact", v)} />
+              <Input label={t("ins.agent_contact")} value={form.agent_contact} onChange={(v) => setF("agent_contact", v)} />
               <Input label="Riders" value={form.riders} onChange={(v) => setF("riders", v)} full />
               <Input label="Notes (corner cases)" value={form.notes} onChange={(v) => setF("notes", v)} full />
             </div>
             <div className="flex justify-end gap-2 mt-6">
-              <button onClick={() => setShowForm(false)} className="px-4 py-2.5 rounded-md border border-border text-sm hover:bg-secondary transition-colors">Cancel</button>
-              <button onClick={add} data-testid="submit-policy" className="px-4 py-2.5 rounded-md bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity">Save policy</button>
+              <button onClick={() => setShowForm(false)} className="px-4 py-2.5 rounded-xl border border-border text-sm hover:bg-secondary transition-colors">{t("button.cancel")}</button>
+              <button onClick={add} data-testid="submit-policy" className="px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity">Save policy</button>
             </div>
       </Modal>
     </Page>
@@ -217,7 +229,7 @@ function Row({ k, v }) {
 }
 function GuideBox({ title, items, color }) {
   return (
-    <div className="border border-border rounded-md p-4 bg-background/40">
+    <div className="border border-border rounded-xl p-4 bg-background/40">
       <p className={`text-xs tracking-[0.15em] uppercase mb-2 ${color}`}>{title}</p>
       <ul className="space-y-1.5 text-sm text-muted-foreground">
         {(items || []).map((it, i) => <li key={i}>• {it}</li>)}
@@ -239,7 +251,7 @@ function Input({ label, value, onChange, full, testid }) {
   return (
     <div className={full ? "md:col-span-2" : ""}>
       <label className="text-[11px] tracking-[0.1em] uppercase text-muted-foreground">{label}</label>
-      <input value={value} data-testid={testid} onChange={(e) => onChange(e.target.value)} className="mt-1 w-full bg-background border border-input rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+      <input value={value} data-testid={testid} onChange={(e) => onChange(e.target.value)} className="mt-1 w-full bg-background border border-input rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
     </div>
   );
 }
@@ -247,7 +259,7 @@ function Select({ label, value, onChange, options, testid }) {
   return (
     <div>
       <label className="text-[11px] tracking-[0.1em] uppercase text-muted-foreground">{label}</label>
-      <select value={value} data-testid={testid} onChange={(e) => onChange(e.target.value)} className="mt-1 w-full bg-background border border-input rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+      <select value={value} data-testid={testid} onChange={(e) => onChange(e.target.value)} className="mt-1 w-full bg-background border border-input rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
         {options.map((o) => <option key={o} value={o}>{TYPE_LABEL(o)}</option>)}
       </select>
     </div>

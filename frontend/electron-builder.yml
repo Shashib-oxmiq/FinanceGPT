@@ -1,0 +1,83 @@
+appId: com.everkin.finchat
+productName: Everkin
+copyright: Copyright © 2026 Everkin
+
+directories:
+  output: release
+  buildResources: electron/resources
+
+# Use the dist/ from Vite build as the renderer
+files:
+  - dist/**/*
+  - electron/**/*
+  - "!electron/scripts/**"
+  - "!electron/resources/{darwin,win32,linux}/**"
+  - "!electron/resources/README.md"
+
+# Shared .env (API keys) — bundled for all platforms
+extraResources:
+  - from: electron/resources/.env
+    to: sidecar/.env
+    filter:
+      - "**/*"
+
+# Platform-specific configs — each platform bundles only its own sidecar binaries
+mac:
+  category: public.app-category.finance
+  target:
+    - dmg
+    - zip
+  arch:
+    - arm64
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  artifactName: ${productName}-${version}-${arch}.${ext}
+  asarUnpack:
+    - electron/sidecar.js
+  extraResources:
+    - from: electron/resources/darwin/
+      to: sidecar/
+      filter:
+        - "**/*"
+
+win:
+  target:
+    - nsis
+  arch:
+    - x64
+  artifactName: ${productName}-${version}-${arch}.${ext}
+  asarUnpack:
+    - electron/sidecar.js
+  extraResources:
+    - from: electron/resources/win32/
+      to: sidecar/
+      filter:
+        - "**/*"
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+  artifactName: ${productName}-${version}-setup.${ext}
+
+linux:
+  target:
+    - AppImage
+    - deb
+  arch:
+    - x64
+  category: Finance
+  artifactName: ${productName}-${version}-${arch}.${ext}
+  asarUnpack:
+    - electron/sidecar.js
+  extraResources:
+    - from: electron/resources/linux/
+      to: sidecar/
+      filter:
+        - "**/*"
+
+# Publish config (adjust when ready for auto-updates)
+publish:
+  provider: github
+  owner: shashib
+  repo: FinanceGPT

@@ -22,7 +22,7 @@ export default function Landing() {
         </div>
         <div className="flex items-center gap-3">
           <Link to="/login" data-testid="nav-login" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Sign in</Link>
-          <Link to="/register" data-testid="nav-register" className="text-sm bg-primary text-primary-foreground px-4 py-2 rounded-md font-medium hover:opacity-90 transition-opacity">Get started</Link>
+          <Link to="/register" data-testid="nav-register" className="text-sm bg-primary text-primary-foreground px-4 py-2 rounded-xl font-medium hover:opacity-90 transition-opacity">Get started</Link>
         </div>
       </header>
 
@@ -38,17 +38,17 @@ export default function Landing() {
             safe, and makes sure your loved ones are covered if you're ever unavailable.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <Link to="/register" data-testid="hero-cta" className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-md font-semibold hover:-translate-y-0.5 transition-transform">
+            <Link to="/register" data-testid="hero-cta" className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-xl font-semibold hover:-translate-y-0.5 transition-transform">
               Start your vault <ArrowRight size={18} weight="bold" />
             </Link>
-            <Link to="/login" className="inline-flex items-center px-6 py-3 rounded-md border border-border font-semibold hover:bg-secondary transition-colors">
+            <Link to="/login" className="inline-flex items-center px-6 py-3 rounded-xl border border-border font-semibold hover:bg-secondary transition-colors">
               I have an account
             </Link>
           </div>
         </div>
         <div className="relative animate-fade-up" style={{ animationDelay: "120ms" }}>
           <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-full" />
-          <img src={HERO} alt="Secure network" className="relative rounded-lg border border-border w-full object-cover h-[420px]" />
+          <img src={HERO} alt="Secure network" className="relative rounded-2xl border border-border w-full object-cover h-[420px]" />
         </div>
       </section>
 

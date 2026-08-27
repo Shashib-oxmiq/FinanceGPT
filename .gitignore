@@ -87,3 +87,23 @@ credentials.json
 *.key
 .credentials
 frontend/node_modules/.cache/default-development/0.pack
+
+# MongoDB binary and data — downloaded at build time, not committed
+frontend/electron/resources/darwin/mongod
+frontend/electron/resources/darwin/mongodb-data/
+frontend/electron/resources/win32/mongod*
+frontend/electron/resources/linux/mongod*
+# Python venv
+backend/.venv/
+# Node modules
+frontend/node_modules/
+# Build output
+frontend/dist/
+# Env files
+*.env
+.env
+.env.*
+# Large files
+*.wt
+*.log
+

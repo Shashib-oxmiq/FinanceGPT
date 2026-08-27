@@ -2,7 +2,7 @@ from deps import db  # loads .env first
 import os
 import logging
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from starlette.middleware.cors import CORSMiddleware
 
 import storage
@@ -12,6 +12,11 @@ from routes_legacy import router as legacy_router
 from routes_share import router as share_router
 from routes_voice import router as voice_router
 from routes_gmail import router as gmail_router
+from routes_market import router as market_router
+from routes_forms import router as forms_router
+from routes_docs import router as docs_router
+from sync import init_sync_engine
+from deps import get_current_user
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -24,6 +29,9 @@ app.include_router(legacy_router)
 app.include_router(share_router)
 app.include_router(voice_router)
 app.include_router(gmail_router)
+app.include_router(market_router)
+app.include_router(forms_router)
+app.include_router(docs_router)
 
 cors_origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()]
 app.add_middleware(
@@ -44,7 +52,7 @@ async def root():
 async def startup():
     try:
         storage.init_storage()
-        logger.info("Object storage initialized")
+        logger.info("Local storage initialized")
     except Exception as e:
         logger.error(f"Storage init failed: {e}")
     try:
@@ -60,7 +68,27 @@ async def startup():
     except Exception as e:
         logger.error(f"Index creation failed: {e}")
 
+    # Start cloud sync engine (if Atlas configured)
+    global sync_engine
+    sync_engine = init_sync_engine(db)
+    await sync_engine.start()
+
 
 @app.on_event("shutdown")
 async def shutdown():
+    if sync_engine:
+        await sync_engine.stop()
     db.client if False else None
+
+
+# ── Cloud sync API ──────────────────────────────────────────────────────────
+@app.get("/api/sync/status")
+async def sync_status(user: dict = Depends(get_current_user)):
+    return sync_engine.status if sync_engine else {"enabled": False, "online": False}
+
+
+@app.post("/api/sync/now")
+async def sync_now(user: dict = Depends(get_current_user)):
+    if not sync_engine:
+        return {"error": "Sync engine not initialized"}
+    return await sync_engine.sync_now()

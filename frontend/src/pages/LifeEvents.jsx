@@ -7,6 +7,9 @@ import {
   Confetti, House, Baby, Island, Heart, Briefcase, Flower, AirplaneTilt,
   CheckCircle, WarningCircle, Package, Lightbulb, Sparkle, ArrowLeft, BellRinging, BellSlash,
 } from "@phosphor-icons/react";
+import SmartAddBar from "../components/SmartAddBar";
+import PanelChat from "../components/PanelChat";
+import { useLanguage } from "../contexts/LanguageContext";
 
 const ICONS = {
   buy_home: House,
@@ -29,6 +32,7 @@ const BLURB = {
 };
 
 export default function LifeEvents() {
+  const { t } = useLanguage();
   const [events, setEvents] = useState([]);
   const [active, setActive] = useState(null);
   const [guide, setGuide] = useState(null);
@@ -114,7 +118,7 @@ export default function LifeEvents() {
           <ArrowLeft size={16} /> All life events
         </button>
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-12 h-12 rounded-lg bg-primary/15 text-primary flex items-center justify-center shrink-0">
+          <div className="w-12 h-12 rounded-2xl bg-primary/15 text-primary flex items-center justify-center shrink-0">
             <Icon size={26} weight="duotone" />
           </div>
           <div>
@@ -124,7 +128,7 @@ export default function LifeEvents() {
         </div>
 
         {loading && (
-          <div className="border border-border rounded-lg p-16 text-center bg-card" data-testid="life-event-loading">
+          <div className="border border-border rounded-2xl p-16 text-center bg-card" data-testid="life-event-loading">
             <Sparkle size={32} weight="duotone" className="text-primary mx-auto mb-3 animate-spin" />
             <p className="text-muted-foreground text-sm">Building your personalised checklist…</p>
           </div>
@@ -132,19 +136,19 @@ export default function LifeEvents() {
 
         {guide && (
           <div className="space-y-6 animate-fade-up" data-testid="life-event-guide">
-            {guide.summary && <p className="text-sm text-muted-foreground border border-border rounded-lg p-4 bg-card">{guide.summary}</p>}
+            {guide.summary && <p className="text-sm text-muted-foreground border border-border rounded-2xl p-4 bg-card">{guide.summary}</p>}
 
-            <div className="border border-border rounded-lg p-6 bg-card">
+            <div className="border border-border rounded-2xl p-6 bg-card">
               <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
                 <h3 className="font-heading text-lg font-bold flex items-center gap-2"><CheckCircle size={18} weight="duotone" className="text-primary" /> Your checklist</h3>
                 <div className="flex items-center gap-2">
                   <button onClick={toggleTrack} data-testid="track-milestone"
-                    className={`flex items-center gap-2 border px-4 py-2.5 rounded-md text-sm font-semibold transition-colors ${isTracked ? "border-primary text-primary bg-primary/10" : "border-border hover:bg-secondary"}`}>
+                    className={`flex items-center gap-2 border px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${isTracked ? "border-primary text-primary bg-primary/10" : "border-border hover:bg-secondary"}`}>
                     {isTracked ? <BellSlash size={16} weight="duotone" /> : <BellRinging size={16} weight="duotone" />}
                     {isTracked ? "Tracking" : "Remind me"}
                   </button>
                   <button onClick={buildBundle} disabled={building || (guide.have_document_ids || []).length === 0} data-testid="build-event-bundle"
-                    className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-md text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60">
+                    className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60">
                     <Package size={16} weight="bold" /> {building ? "Building…" : `Build pack (${(guide.have_document_ids || []).length})`}
                   </button>
                 </div>
@@ -173,7 +177,7 @@ export default function LifeEvents() {
             </div>
 
             <div className="grid md:grid-cols-2 gap-4">
-              <div className="border border-border rounded-lg p-6 bg-card">
+              <div className="border border-border rounded-2xl p-6 bg-card">
                 <h3 className="text-xs tracking-[0.15em] uppercase mb-3 flex items-center gap-1 text-accent"><CheckCircle size={16} weight="duotone" /> Documents you have</h3>
                 {(guide.matched_documents || []).length === 0 ? (
                   <p className="text-sm text-muted-foreground">None yet — upload in the Vault.</p>
@@ -188,7 +192,7 @@ export default function LifeEvents() {
                   </ul>
                 )}
               </div>
-              <div className="border border-border rounded-lg p-6 bg-card">
+              <div className="border border-border rounded-2xl p-6 bg-card">
                 <h3 className="text-xs tracking-[0.15em] uppercase mb-3 flex items-center gap-1 text-[hsl(var(--warning))]"><WarningCircle size={16} weight="duotone" /> Still to gather</h3>
                 {(guide.missing_categories || []).length === 0 ? (
                   <p className="text-sm text-accent">You're all set — nothing missing!</p>
@@ -203,7 +207,7 @@ export default function LifeEvents() {
             </div>
 
             {(guide.tips || []).length > 0 && (
-              <div className="border border-border rounded-lg p-6 bg-card">
+              <div className="border border-border rounded-2xl p-6 bg-card">
                 <h3 className="text-xs tracking-[0.15em] uppercase mb-3 flex items-center gap-1 text-primary"><Lightbulb size={16} weight="duotone" /> Tips</h3>
                 <ul className="space-y-1.5 text-sm text-muted-foreground">
                   {guide.tips.map((t, i) => <li key={i}>• {t}</li>)}
@@ -220,16 +224,24 @@ export default function LifeEvents() {
     <Page>
       <PageHeader
         testid="life-events-header"
-        title="Life Event Guides"
-        subtitle="Big moments come with big paperwork. Pick a milestone and Everkin builds a tailored checklist and gathers the right documents into a ready-to-share pack."
+        title={t("page.life_events.title")}
+        subtitle={t("page.life_events.subtitle")}
+      />
+      <SmartAddBar target="life_event" onAdded={() => {
+        api.get("/life-events/tracked").then(({ data }) => setTracked(data.map((t) => t.event))).catch(() => {});
+      }} />
+      <PanelChat
+        contextLabel="Life Events"
+        systemHint="The user is on the Life Events page. Help them understand what life events they're tracking, what documents they need for each milestone, and answer questions about marriage, new baby, new home, retirement, and other life events."
+        storageKey="panel_chat_life_events"
       />
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {events.map((ev) => {
           const Icon = ICONS[ev.key] || Confetti;
           return (
             <button key={ev.key} onClick={() => openEvent(ev)} data-testid={`life-event-${ev.key}`}
-              className="text-left border border-border rounded-lg p-6 bg-card hover:-translate-y-1 hover:border-primary/50 transition-all group">
-              <div className="w-11 h-11 rounded-lg bg-primary/15 text-primary flex items-center justify-center mb-4 group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+              className="text-left border border-border rounded-2xl p-6 bg-card hover:-translate-y-1 hover:border-primary/50 transition-all group">
+              <div className="w-11 h-11 rounded-2xl bg-primary/15 text-primary flex items-center justify-center mb-4 group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
                 <Icon size={24} weight="duotone" />
               </div>
               <h3 className="font-heading text-lg font-bold">{ev.title}</h3>

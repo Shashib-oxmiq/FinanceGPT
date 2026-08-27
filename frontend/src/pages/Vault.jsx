@@ -4,8 +4,12 @@ import { api, API } from "../lib/api";
 import { Page, PageHeader } from "../components/Page";
 import { UploadSimple, Trash, FileText, DownloadSimple, Folder } from "@phosphor-icons/react";
 import { CATEGORY_LABELS as CAT_LABELS } from "../lib/categories";
+import SmartAddBar from "../components/SmartAddBar";
+import PanelChat from "../components/PanelChat";
+import { useLanguage } from "../contexts/LanguageContext";
 
 export default function Vault() {
+  const { t } = useLanguage();
   const [docs, setDocs] = useState([]);
   const [categories, setCategories] = useState([]);
   const [filter, setFilter] = useState("");
@@ -28,6 +32,7 @@ export default function Vault() {
     if (files.length === 0) return;
     setUploading(true);
     let ok = 0;
+    let dups = 0;
     for (let i = 0; i < files.length; i++) {
       setProgress(`Uploading & classifying ${i + 1}/${files.length}…`);
       const fd = new FormData();
@@ -35,14 +40,21 @@ export default function Vault() {
       fd.append("category", uploadCat);
       fd.append("auto_classify", uploadCat === "auto" ? "true" : "false");
       try {
-        await api.post("/documents/upload", fd, { headers: { "Content-Type": "multipart/form-data" } });
-        ok++;
+        const { data } = await api.post("/documents/upload", fd);
+        if (data.duplicate) {
+          dups++;
+          toast.warning(`⚠ "${data.existing_filename}" is already in your Vault — duplicate skipped`);
+        } else {
+          ok++;
+        }
       } catch { /* continue with the rest */ }
     }
     setProgress("");
     setUploading(false);
     if (fileRef.current) fileRef.current.value = "";
-    if (ok === files.length) toast.success(`${ok} document${ok !== 1 ? "s" : ""} uploaded`);
+    if (ok > 0 && dups === 0) toast.success(`${ok} document${ok !== 1 ? "s" : ""} uploaded`);
+    else if (ok > 0 && dups > 0) toast.success(`${ok} uploaded, ${dups} duplicate${dups !== 1 ? "s" : ""} skipped`);
+    else if (ok === 0 && dups > 0) toast.warning(`${dups} duplicate${dups !== 1 ? "s" : ""} detected — already in your Vault`);
     else toast.error(`${ok}/${files.length} uploaded — some failed`);
     load();
   };
@@ -59,12 +71,12 @@ export default function Vault() {
       const url = URL.createObjectURL(blob);
       window.open(url, "_blank");
       setTimeout(() => URL.revokeObjectURL(url), 60000);
-    } catch { toast.error("Could not open document"); }
+    } catch { toast.error(t("toast.failed_open")); }
   };
 
   const del = async (id) => {
     await api.delete(`/documents/${id}`);
-    toast.success("Removed");
+    toast.success(t("toast.removed"));
     load();
   };
 
@@ -72,31 +84,43 @@ export default function Vault() {
     <Page>
       <PageHeader
         testid="vault-header"
-        title="Document Vault"
-        subtitle="Encrypted storage for all your important documents. Upload several at once — Everkin auto-classifies each and extracts key details."
+        title={t("page.vault.title")}
+        subtitle={t("page.vault.subtitle")}
         actions={
           <div className="flex items-center gap-2">
-            <select value={uploadCat} onChange={(e) => setUploadCat(e.target.value)} data-testid="upload-category" className="text-sm bg-background border border-input rounded-md px-2 py-2.5 focus:outline-none focus:ring-2 focus:ring-ring">
+            <select value={uploadCat} onChange={(e) => setUploadCat(e.target.value)} data-testid="upload-category" className="text-sm bg-background border border-input rounded-xl px-2 py-2.5 focus:outline-none focus:ring-2 focus:ring-ring">
               <option value="auto">Auto-detect (AI)</option>
               {categories.map((c) => <option key={c} value={c}>{CAT_LABELS[c] || c}</option>)}
             </select>
             <input ref={fileRef} type="file" multiple onChange={upload} className="hidden" data-testid="file-input" />
-            <button onClick={() => fileRef.current?.click()} disabled={uploading} data-testid="upload-button" className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-md text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60">
-              <UploadSimple size={16} weight="bold" /> {uploading ? (progress || "Uploading…") : "Upload"}
+            <button onClick={() => fileRef.current?.click()} disabled={uploading} data-testid="upload-button" className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60">
+              <UploadSimple size={16} weight="bold" /> {uploading ? (progress || t("common.loading")) : t("page.upload_documents")}
             </button>
           </div>
         }
       />
 
+      <SmartAddBar
+        target="auto"
+        placeholder='e.g. "I have a PAN card (number ABCDE1234F), an Aadhaar card, and a passport expiring in 2028"'
+        onAdded={() => load()}
+      />
+
+      <PanelChat
+        contextLabel="Document Vault"
+        systemHint="The user is on the Document Vault page. You can see their uploaded documents listed in the knowledge base below. Help them find documents, understand what they have, identify missing documents for specific purposes, and answer questions about document categories, expiry dates, and contents."
+        storageKey="panel_chat_vault"
+      />
+
       <div className="flex flex-wrap gap-2 mb-6">
-        <Chip active={filter === ""} onClick={() => setFilter("")} label="All" />
+        <Chip active={filter === ""} onClick={() => setFilter("")} label={t("page.all")} />
         {categories.map((c) => <Chip key={c} active={filter === c} onClick={() => setFilter(c)} label={CAT_LABELS[c] || c} />)}
       </div>
 
       {docs.length === 0 ? (
-        <div className="border border-dashed border-border rounded-lg p-16 text-center" data-testid="vault-empty">
+        <div className="border border-dashed border-border rounded-2xl p-16 text-center" data-testid="vault-empty">
           <Folder size={40} weight="duotone" className="text-muted-foreground mx-auto mb-4" />
-          <p className="text-muted-foreground">No documents in this view. Upload to get started.</p>
+          <p className="text-muted-foreground">{t("empty.vault")}</p>
         </div>
       ) : (
         <div className="border-t border-l border-border grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">

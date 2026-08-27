@@ -1,31 +1,34 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import { useLanguage } from "../contexts/LanguageContext";
 import { api } from "../lib/api";
+import LanguageSwitcher from "./LanguageSwitcher";
 import {
   House, ChatCircleText, IdentificationCard, ShieldCheck, Vault as VaultIcon,
-  FileText, Package, HandHeart, SignOut, Sun, MoonStars, List, X, PuzzlePiece, ChartLineUp, TrendUp, Bank, Confetti, Bell, EnvelopeSimple,
+  FileText, Package, HandHeart, SignOut, Sun, MoonStars, List, X, PuzzlePiece, ChartLineUp, TrendUp, Bank, Confetti, Bell, EnvelopeSimple, ArrowLeft,
 } from "@phosphor-icons/react";
 
 const NAV = [
-  { to: "/dashboard", label: "Overview", icon: House },
-  { to: "/reminders", label: "Reminders", icon: Bell, badge: true },
-  { to: "/chat", label: "AI Advisor", icon: ChatCircleText },
-  { to: "/insights", label: "Money Insights", icon: ChartLineUp },
-  { to: "/investments", label: "Investments", icon: TrendUp },
-  { to: "/loans", label: "Loan Prep", icon: Bank },
-  { to: "/life-events", label: "Life Events", icon: Confetti },
-  { to: "/profile", label: "Profile", icon: IdentificationCard },
-  { to: "/insurance", label: "Insurance", icon: ShieldCheck },
-  { to: "/vault", label: "Document Vault", icon: VaultIcon },
-  { to: "/gmail", label: "Import from Gmail", icon: EnvelopeSimple },
-  { to: "/forms", label: "Form Filler", icon: FileText },
-  { to: "/bundler", label: "Doc Bundler", icon: Package },
-  { to: "/legacy", label: "Next-of-Kin", icon: HandHeart },
+  { to: "/dashboard", labelKey: "nav.dashboard", icon: House },
+  { to: "/reminders", labelKey: "nav.reminders", icon: Bell, badge: true },
+  { to: "/chat", labelKey: "chat.title", icon: ChatCircleText },
+  { to: "/insights", labelKey: "nav.insights", icon: ChartLineUp },
+  { to: "/investments", labelKey: "nav.investments", icon: TrendUp },
+  { to: "/loans", labelKey: "nav.loan_prep", icon: Bank },
+  { to: "/life-events", labelKey: "nav.life_events", icon: Confetti },
+  { to: "/profile", labelKey: "nav.profile", icon: IdentificationCard },
+  { to: "/insurance", labelKey: "nav.insurance", icon: ShieldCheck },
+  { to: "/vault", labelKey: "nav.vault", icon: VaultIcon },
+  { to: "/gmail", labelKey: "nav.gmail", icon: EnvelopeSimple },
+  { to: "/forms", labelKey: "nav.form_filler", icon: FileText },
+  { to: "/bundler", labelKey: "nav.bundler", icon: Package },
+  { to: "/legacy", labelKey: "nav.legacy", icon: HandHeart },
 ];
 
 export default function Layout({ children }) {
   const { user, logout } = useAuth();
+  const { t } = useLanguage();
   const location = useLocation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -57,12 +60,15 @@ export default function Layout({ children }) {
   const SidebarInner = (suffix = "") => (
     <div className="flex flex-col h-full">
       <div className="px-6 py-6 border-b border-border">
-        <Link to="/dashboard" className="flex items-center gap-2" data-testid={`brand-logo${suffix}`}>
+        <Link to="/chat" className="flex items-center gap-2" data-testid={`brand-logo${suffix}`}>
           <ShieldCheck size={26} weight="duotone" className="text-primary" />
           <span className="font-heading font-black text-lg tracking-tight">EVERKIN</span>
         </Link>
-        <p className="text-[10px] tracking-[0.25em] uppercase text-muted-foreground mt-1">Secure Financial Vault</p>
+        <p className="text-[10px] tracking-[0.25em] uppercase text-muted-foreground mt-1">{t("app.tagline")}</p>
       </div>
+      <Link to="/chat" data-testid={`back-to-chat${suffix}`} className="flex items-center gap-2 px-6 py-3 text-sm border-b border-border text-primary hover:bg-primary/10 transition-colors font-medium">
+        <ArrowLeft size={18} weight="duotone" /> {t("nav.back_to_chat")}
+      </Link>
       <nav className="flex-1 py-4 overflow-y-auto scroll-thin">
         {NAV.map((item) => {
           const Active = location.pathname === item.to;
@@ -80,7 +86,7 @@ export default function Layout({ children }) {
               }`}
             >
               <Icon size={20} weight={Active ? "fill" : "duotone"} />
-              <span className="flex-1">{item.label}</span>
+              <span className="flex-1">{t(item.labelKey)}</span>
               {item.badge && reminderCount > 0 && (
                 <span data-testid={`reminder-badge${suffix}`} className="ml-auto text-[10px] font-bold bg-primary text-primary-foreground rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center">
                   {reminderCount}
@@ -96,8 +102,11 @@ export default function Layout({ children }) {
           data-testid={`download-extension${suffix}`}
           className="flex items-center gap-2 text-xs text-muted-foreground hover:text-primary transition-colors"
         >
-          <PuzzlePiece size={16} weight="duotone" /> Get Chrome Extension
+          <PuzzlePiece size={16} weight="duotone" /> {t("label.get_chrome_extension")}
         </a>
+        <div className="py-1">
+          <LanguageSwitcher />
+        </div>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 min-w-0">
             <div className="w-8 h-8 rounded-full bg-primary/15 text-primary flex items-center justify-center text-xs font-bold shrink-0">
@@ -109,10 +118,10 @@ export default function Layout({ children }) {
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <button onClick={toggleTheme} data-testid={`theme-toggle${suffix}`} className="p-2 rounded-md hover:bg-secondary transition-colors">
+            <button onClick={toggleTheme} data-testid={`theme-toggle${suffix}`} className="p-2 rounded-xl hover:bg-secondary transition-colors">
               {dark ? <Sun size={16} weight="duotone" /> : <MoonStars size={16} weight="duotone" />}
             </button>
-            <button onClick={doLogout} data-testid={`logout-button${suffix}`} className="p-2 rounded-md hover:bg-secondary text-destructive transition-colors">
+            <button onClick={doLogout} data-testid={`logout-button${suffix}`} className="p-2 rounded-xl hover:bg-secondary text-destructive transition-colors" title={t("common.close")}>
               <SignOut size={16} weight="duotone" />
             </button>
           </div>

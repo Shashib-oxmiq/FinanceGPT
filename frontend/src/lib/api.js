@@ -1,7 +1,39 @@
 import axios from "axios";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-export const API = `${BACKEND_URL}/api`;
+/**
+ * Resolve the backend URL.
+ *
+ * In the Electron desktop app, the sidecar manager picks a free port at startup
+ * and exposes it via IPC (`window.electronAPI.getBackendUrl()`).
+ * In the browser (dev/standalone), we fall back to the Vite env var or localhost:8000.
+ */
+let _backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
+
+export async function resolveBackendUrl() {
+  // Check if running inside Electron with the preload bridge
+  if (typeof window !== "undefined" && window.electronAPI?.getBackendUrl) {
+    try {
+      // Race IPC against a 2-second timeout — never hang the render
+      const url = await Promise.race([
+        window.electronAPI.getBackendUrl(),
+        new Promise((_, reject) => setTimeout(() => reject(), 2000)),
+      ]);
+      if (url) {
+        _backendUrl = url;
+        api.defaults.baseURL = `${url}/api`;
+      }
+    } catch {
+      // IPC not ready or timed out — keep the default
+    }
+  }
+  return _backendUrl;
+}
+
+export function getBackendUrl() {
+  return _backendUrl;
+}
+
+export const API = `${_backendUrl}/api`;
 
 export const api = axios.create({
   baseURL: API,

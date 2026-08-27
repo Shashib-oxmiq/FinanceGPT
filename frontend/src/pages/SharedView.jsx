@@ -57,8 +57,8 @@ export default function SharedView() {
             <LockKey size={36} weight="duotone" className="text-primary mb-4" />
             <h1 className="font-heading text-2xl font-black">Enter password</h1>
             <p className="text-sm text-muted-foreground mt-1 mb-6">This shared folder is protected. Enter the 8-digit password you were given.</p>
-            <input value={password} onChange={(e) => setPassword(e.target.value)} data-testid="share-password-input" inputMode="numeric" maxLength={8} placeholder="00000000" className="w-full bg-card border border-input rounded-md px-3 py-3 text-center text-lg tracking-[0.4em] font-mono focus:outline-none focus:ring-2 focus:ring-ring" />
-            <button type="submit" disabled={busy || password.length < 8} data-testid="unlock-button" className="mt-4 w-full bg-primary text-primary-foreground py-3 rounded-md font-semibold hover:opacity-90 transition-opacity disabled:opacity-60">
+            <input value={password} onChange={(e) => setPassword(e.target.value)} data-testid="share-password-input" inputMode="numeric" maxLength={8} placeholder="00000000" className="w-full bg-card border border-input rounded-xl px-3 py-3 text-center text-lg tracking-[0.4em] font-mono focus:outline-none focus:ring-2 focus:ring-ring" />
+            <button type="submit" disabled={busy || password.length < 8} data-testid="unlock-button" className="mt-4 w-full bg-primary text-primary-foreground py-3 rounded-xl font-semibold hover:opacity-90 transition-opacity disabled:opacity-60">
               {busy ? "Unlocking…" : "Unlock documents"}
             </button>
           </form>
@@ -69,11 +69,11 @@ export default function SharedView() {
                 <h1 className="font-heading text-2xl font-black">{data.name}</h1>
                 <p className="text-sm text-muted-foreground">Shared by {data.owner} · expires {new Date(data.expires_at).toLocaleDateString()}</p>
               </div>
-              <a href={zipUrl} data-testid="download-all" className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-md text-sm font-semibold hover:opacity-90 transition-opacity">
+              <a href={zipUrl} data-testid="download-all" className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity">
                 <DownloadSimple size={16} weight="bold" /> Download all (.zip)
               </a>
             </div>
-            <div className="border border-border rounded-lg bg-card divide-y divide-border/60">
+            <div className="border border-border rounded-2xl bg-card divide-y divide-border/60">
               {data.documents.map((d) => (
                 <div key={d.document_id} className="flex items-center gap-3 p-4" data-testid={`share-doc-${d.document_id}`}>
                   <FileText size={22} weight="duotone" className="text-primary shrink-0" />
@@ -94,7 +94,7 @@ export default function SharedView() {
       <Modal open={!!preview} onClose={() => setPreview(null)} title={preview?.filename || "Document"} testid="share-preview">
         {preview?.loading && <p className="text-sm text-muted-foreground py-8 text-center">Loading…</p>}
         {preview && !preview.loading && (
-          <div className="rounded-md overflow-hidden border border-border bg-background" style={{ minHeight: 200 }}>
+          <div className="rounded-xl overflow-hidden border border-border bg-background" style={{ minHeight: 200 }}>
             {(preview.content_type || "").startsWith("image/") ? (
               <img src={preview.url} alt={preview.filename} className="w-full object-contain max-h-[60vh]" />
             ) : (preview.content_type || "").includes("pdf") ? (

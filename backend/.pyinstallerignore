@@ -1,0 +1,8 @@
+# PyInstaller ignore patterns
+tests/
+__pycache__/
+*.pyc
+.env
+.git/
+pytest.ini
+*.egg-info/

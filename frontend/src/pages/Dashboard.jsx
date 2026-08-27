@@ -7,8 +7,12 @@ import {
   ShieldCheck, ChatCircleText, Package, FileText, ArrowUpRight, HandHeart, Vault as VaultI,
 } from "@phosphor-icons/react";
 import { CATEGORY_LABELS as CAT_LABELS } from "../lib/categories";
+import SmartAddBar from "../components/SmartAddBar";
+import PanelChat from "../components/PanelChat";
+import { useLanguage } from "../contexts/LanguageContext";
 
 export default function Dashboard() {
+  const { t } = useLanguage();
   const { user } = useAuth();
   const [stats, setStats] = useState(null);
 
@@ -23,21 +27,32 @@ export default function Dashboard() {
       <PageHeader
         testid="dashboard-header"
         title={`Welcome, ${user?.name?.split(" ")[0] || "there"}`}
-        subtitle="Your secure command center — profile readiness, documents and legacy status at a glance."
+        subtitle={t("page.dashboard.subtitle")}
+      />
+
+      <SmartAddBar
+        target="auto"
+        onAdded={() => api.get("/dashboard/stats").then(({ data }) => setStats(data))}
+      />
+
+      <PanelChat
+        contextLabel="Dashboard"
+        systemHint="The user is on the Dashboard page. Help them understand their overall profile readiness, what documents they have, what's missing, and suggest next steps to complete their financial life profile."
+        storageKey="panel_chat_dashboard"
       />
 
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        <div className="md:col-span-1 lg:col-span-2 border border-border rounded-lg p-8 bg-card" data-testid="completeness-card">
-          <p className="text-xs tracking-[0.2em] uppercase text-muted-foreground">Profile Readiness</p>
+        <div className="md:col-span-1 lg:col-span-2 border border-border rounded-2xl p-8 bg-card" data-testid="completeness-card">
+          <p className="text-xs tracking-[0.2em] uppercase text-muted-foreground">{t("label.profile_readiness")}</p>
           <div className="flex items-end gap-3 mt-4">
             <span className="font-heading text-6xl font-black tabular text-primary">{c}%</span>
-            <span className="text-sm text-muted-foreground mb-2">complete</span>
+            <span className="text-sm text-muted-foreground mb-2">{t("label.complete")}</span>
           </div>
           <div className="mt-4 h-2 rounded-full bg-secondary overflow-hidden">
             <div className="h-full bg-primary transition-all duration-700" style={{ width: `${c}%` }} />
           </div>
           <Link to="/chat" className="inline-flex items-center gap-1 text-sm text-primary hover:underline mt-4" data-testid="dashboard-chat-cta">
-            Let the AI advisor fill the gaps <ArrowUpRight size={16} weight="bold" />
+            {t("label.let_ai_fill_gaps")} <ArrowUpRight size={16} weight="bold" />
           </Link>
         </div>
 
@@ -50,7 +65,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
-        <div className="lg:col-span-2 border border-border rounded-lg p-6 bg-card" data-testid="category-breakdown">
+        <div className="lg:col-span-2 border border-border rounded-2xl p-6 bg-card" data-testid="category-breakdown">
           <h3 className="font-heading text-lg font-bold mb-4">Documents by Category</h3>
           {stats && Object.keys(stats.by_category || {}).length === 0 ? (
             <p className="text-sm text-muted-foreground">No documents yet. Upload your first file in the Vault.</p>
@@ -69,7 +84,7 @@ export default function Dashboard() {
           )}
         </div>
 
-        <div className="border border-border rounded-lg p-6 bg-card" data-testid="recent-documents">
+        <div className="border border-border rounded-2xl p-6 bg-card" data-testid="recent-documents">
           <h3 className="font-heading text-lg font-bold mb-4">Recent Uploads</h3>
           {(stats?.recent_documents || []).length === 0 ? (
             <p className="text-sm text-muted-foreground">Nothing here yet.</p>
@@ -91,7 +106,7 @@ export default function Dashboard() {
 
 function Stat({ icon: Icon, label, value, to, testid }) {
   return (
-    <Link to={to} data-testid={testid} className="border border-border rounded-lg p-6 bg-card hover:-translate-y-1 transition-transform">
+    <Link to={to} data-testid={testid} className="border border-border rounded-2xl p-6 bg-card hover:-translate-y-1 transition-transform">
       <Icon size={24} weight="duotone" className="text-primary" />
       <p className="font-heading text-3xl font-black mt-3 tabular">{value}</p>
       <p className="text-xs tracking-[0.15em] uppercase text-muted-foreground mt-1">{label}</p>

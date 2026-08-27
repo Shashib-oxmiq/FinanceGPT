@@ -3,6 +3,7 @@ import os
 import re
 import json
 import uuid
+import hashlib
 import zipfile
 from datetime import datetime, timezone
 
@@ -16,6 +17,8 @@ from typing import Optional, List
 from deps import db, get_current_user, PROFILE_SCHEMA, DOC_CATEGORIES, APP_NAME, profile_completeness
 import storage
 import ai
+
+from routes_market import get_portfolio_market_context
 
 router = APIRouter(prefix="/api")
 
@@ -136,7 +139,50 @@ async def delete_conversation(conversation_id: str, user: dict = Depends(get_cur
     return {"ok": True}
 
 
-def build_system_prompt(user: dict, history: list) -> str:
+async def _get_user_knowledge(user_id: str, limit: int = 20) -> str:
+    """Build a knowledge-base summary from the user's uploaded documents and chat files.
+    This gives the AI persistent context about what files the user has shared, without
+    needing to re-read the raw files every time."""
+    lines = []
+    # Documents from the Vault (classified, with metadata)
+    docs = await db.documents.find(
+        {"user_id": user_id, "is_deleted": False}, {"_id": 0}
+    ).sort("created_at", -1).limit(limit).to_list(limit)
+    for d in docs:
+        meta = d.get("metadata") or {}
+        parts = [f"  - {d.get('original_filename', 'unknown')}"]
+        if d.get("category"):
+            parts.append(f"category={d['category']}")
+        if meta.get("title"):
+            parts.append(f"title=\"{meta['title']}\"")
+        if meta.get("issuer"):
+            parts.append(f"issuer=\"{meta['issuer']}\"")
+        if meta.get("date"):
+            parts.append(f"date={meta['date']}")
+        if meta.get("expiry_date"):
+            parts.append(f"expires={meta['expiry_date']}")
+        if meta.get("summary"):
+            parts.append(f"summary=\"{meta['summary'][:120]}\"")
+        lines.append(", ".join(parts))
+    # Chat file attachments (files shared in conversations)
+    chat_files = await db.chat_files.find(
+        {"user_id": user_id}, {"_id": 0, "filename": 1, "content_type": 1, "size": 1, "created_at": 1}
+    ).sort("created_at", -1).limit(limit).to_list(limit)
+    for cf in chat_files:
+        lines.append(f"  - {cf.get('filename', 'unknown')} (chat file, {cf.get('content_type', '?')}, {cf.get('size', 0)} bytes)")
+    if not lines:
+        return ""
+    return (
+        "\n\n=== USER KNOWLEDGE BASE ===\n"
+        f"The user has shared {len(lines)} file(s) across their vault and conversations:\n"
+        + "\n".join(lines)
+        + "\n=== END KNOWLEDGE BASE ===\n"
+        "Use this knowledge to reference the user's files when relevant. "
+        "If the user asks about a document, check this list first before searching."
+    )
+
+
+def build_system_prompt(user: dict, history: list, knowledge: str = "") -> str:
     profile = user.get("profile", {}) or {}
     base = (
         "You are Everkin — the personal AI assistant that matters most in someone's life. "
@@ -164,14 +210,103 @@ def build_system_prompt(user: dict, history: list) -> str:
 
 class ChatAttachment(BaseModel):
     attachment_id: str
-    filename: str
+    filename: str = ""
     content_type: Optional[str] = ""
 
 
 class MessageBody(BaseModel):
     content: str
     model: Optional[str] = "claude"
+    language: Optional[str] = "en"
     attachments: Optional[List[ChatAttachment]] = []
+
+
+# ── Smart duplicate detection ────────────────────────────────────────────────
+
+def _content_hash(data: bytes) -> str:
+    """SHA-256 content hash for exact duplicate detection."""
+    return hashlib.sha256(data).hexdigest()
+
+
+def _normalize_filename(name: str) -> str:
+    """Normalize a filename for fuzzy comparison — strip extensions, dates, common noise."""
+    base = name.rsplit(".", 1)[0] if "." in name else name
+    base = re.sub(r"[_\-\s]+", " ", base).strip().lower()
+    # Remove common date patterns
+    base = re.sub(r"\b\d{1,2}[-/]\d{1,2}[-/]\d{2,4}\b", "", base)
+    base = re.sub(r"\b\d{4}[-/]\d{1,2}[-/]\d{1,2}\b", "", base)
+    base = re.sub(r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s*\d{0,4}\b", "", base)
+    # Remove copy/duplicate indicators
+    base = re.sub(r"\b(copy|duplicate|dup|final|latest|new|old|backup|v\d+)\b", "", base)
+    # Remove trailing numbers that look like counters
+    base = re.sub(r"\s*\(\d+\)\s*$", "", base)
+    return re.sub(r"\s+", " ", base).strip()
+
+
+def _name_similarity(a: str, b: str) -> float:
+    """Token-overlap similarity score between two normalized filenames (0.0–1.0)."""
+    na, nb = _normalize_filename(a), _normalize_filename(b)
+    if not na or not nb:
+        return 0.0
+    if na == nb:
+        return 1.0
+    tokens_a = set(na.split())
+    tokens_b = set(nb.split())
+    if not tokens_a or not tokens_b:
+        return 0.0
+    overlap = len(tokens_a & tokens_b)
+    union = len(tokens_a | tokens_b)
+    # Jaccard similarity
+    return overlap / union if union else 0.0
+
+
+async def _check_duplicate(user_id: str, data: bytes, filename: str, content_type: str) -> dict:
+    """
+    Check if a file is a duplicate of an existing document in the user's vault.
+
+    Returns one of:
+      - {"is_duplicate": False}
+      - {"is_duplicate": True, "match_type": "exact", "existing": {...}}
+      - {"is_duplicate": True, "match_type": "similar", "similarity": 0.85, "existing": {...}}
+    """
+    if not data or len(data) < 10:
+        return {"is_duplicate": False}
+
+    chash = _content_hash(data)
+
+    # 1. Exact match by content hash — check all existing documents
+    existing = await db.documents.find(
+        {"user_id": user_id, "is_deleted": False},
+        {"_id": 0, "document_id": 1, "original_filename": 1, "content_type": 1,
+         "size": 1, "category": 1, "created_at": 1, "content_hash": 1}
+    ).to_list(500)
+
+    # Check content hash match
+    for doc in existing:
+        doc_hash = doc.get("content_hash")
+        if not doc_hash:
+            # Legacy doc without hash — compute on the fly if size matches
+            if doc.get("size") == len(data):
+                try:
+                    old_data, _ = await run_in_threadpool(storage.get_object, doc.get("storage_path", ""))
+                    if _content_hash(old_data) == chash:
+                        return {"is_duplicate": True, "match_type": "exact", "existing": doc}
+                except Exception:
+                    continue
+        elif doc_hash == chash:
+            return {"is_duplicate": True, "match_type": "exact", "existing": doc}
+
+    # 2. Similar match — same file size + high filename similarity (renamed file)
+    for doc in existing:
+        size_match = doc.get("size") == len(data)
+        name_sim = _name_similarity(filename, doc.get("original_filename", ""))
+        if size_match and name_sim >= 0.6:
+            return {"is_duplicate": True, "match_type": "similar", "similarity": round(name_sim, 2), "existing": doc}
+        # High name similarity even without size match (slightly modified file)
+        if name_sim >= 0.85 and doc.get("size", 0) and abs(doc.get("size", 0) - len(data)) < max(1024, len(data) * 0.05):
+            return {"is_duplicate": True, "match_type": "similar", "similarity": round(name_sim, 2), "existing": doc}
+
+    return {"is_duplicate": False}
 
 
 @router.post("/chat/upload")
@@ -180,7 +315,27 @@ async def chat_upload(file: UploadFile = File(...), user: dict = Depends(get_cur
     path = f"{APP_NAME}/chat/{user['user_id']}/{uuid.uuid4().hex}.{ext}"
     data = await file.read()
     content_type = file.content_type or storage.MIME_TYPES.get(ext, "application/octet-stream")
+
+    # ── Smart duplicate check ──
+    dup = await _check_duplicate(user["user_id"], data, file.filename, content_type)
+    if dup["is_duplicate"]:
+        existing = dup["existing"]
+        match_desc = "exact same file" if dup["match_type"] == "exact" else f"{int(dup.get('similarity', 0) * 100)}% similar name"
+        return {
+            "duplicate": True,
+            "match_type": dup["match_type"],
+            "similarity": dup.get("similarity", 1.0),
+            "message": f"This looks like a duplicate of \"{existing.get('original_filename', 'an existing file')}\" ({match_desc}). Already in your Vault.",
+            "existing_document_id": existing.get("document_id"),
+            "existing_filename": existing.get("original_filename"),
+            "existing_category": existing.get("category"),
+            "filename": file.filename,
+            "content_type": content_type,
+            "size": len(data),
+        }
+
     await run_in_threadpool(storage.put_object, path, data, content_type)
+    chash = _content_hash(data)
     att = {
         "attachment_id": str(uuid.uuid4()),
         "user_id": user["user_id"],
@@ -188,6 +343,7 @@ async def chat_upload(file: UploadFile = File(...), user: dict = Depends(get_cur
         "filename": file.filename,
         "content_type": content_type,
         "size": len(data),
+        "content_hash": chash,
         "created_at": now_iso(),
     }
     await db.chat_files.insert_one(dict(att))
@@ -201,6 +357,7 @@ async def chat_upload(file: UploadFile = File(...), user: dict = Depends(get_cur
         "original_filename": file.filename,
         "content_type": content_type,
         "size": len(data),
+        "content_hash": chash,
         "category": detected or "other",
         "auto_classified": bool(detected or metadata),
         "metadata": metadata,
@@ -346,7 +503,73 @@ async def send_message(conversation_id: str, body: MessageBody, user: dict = Dep
     # File attachments/vault docs are only supported by Gemini; route multimodal messages accordingly.
     if file_contents:
         model_key = "gemini"
-    system = build_system_prompt(user, history)
+    knowledge = await _get_user_knowledge(user["user_id"])
+    market_ctx = await get_portfolio_market_context(user["user_id"])
+    system = build_system_prompt(user, history, knowledge)
+    system += "\n\n" + market_ctx
+
+    # ── Investment list for chat-driven CRUD ──
+    investments = await db.investments.find(
+        {"user_id": user["user_id"]}, {"_id": 0}
+    ).sort("created_at", -1).to_list(50)
+    if investments:
+        inv_lines = []
+        for inv in investments:
+            inv_lines.append(
+                f"  - id={inv.get('investment_id','')} | {inv.get('name','')} | "
+                f"type={inv.get('asset_type','')} | invested={inv.get('amount_invested',0)} | "
+                f"current={inv.get('current_value',0)} | ticker={inv.get('ticker','')} | "
+                f"purchase_date={inv.get('purchase_date','')}"
+            )
+        system += (
+            "\n\n=== USER'S INVESTMENTS (you can manage these via chat) ===\n"
+            + "\n".join(inv_lines)
+            + "\n\nTo ADD an investment, emit: [INV_ADD:{\"name\":\"...\",\"asset_type\":\"stock\",\"amount_invested\":1000,\"current_value\":1100,\"ticker\":\"AAPL\",\"market\":\"US\",\"purchase_date\":\"\",\"notes\":\"\"}]\n"
+            "To EDIT an investment by name, emit: [INV_EDIT:{\"name\":\"Apple\",\"updates\":{\"current_value\":3200,\"notes\":\"updated\"}}]\n"
+            "To DELETE an investment by name, emit: [INV_DELETE:Apple]\n"
+            "Place the marker at the END of your response. Explain to the user what you did in plain language BEFORE the marker. "
+            "The app will execute the action and confirm. You can emit multiple markers in one response if needed.\n"
+            "=== END INVESTMENT ACTIONS ==="
+        )
+
+    # ── Document generation from chat ──
+    system += (
+        "\n\n=== DOCUMENT GENERATION (from chat) ===\n"
+        "You can generate legal documents (PDF/DOCX) for the user directly from chat. "
+        "Available templates: rental_agreement, nda, will, employment_contract, "
+        "loan_agreement, power_of_attorney, partnership_deed, sale_deed.\n"
+        "To generate a document, emit at the END of your response:\n"
+        "[DOC_GEN:{\"template_id\":\"rental_agreement\",\"format\":\"pdf\",\"data\":{\"landlord_name\":\"...\",\"tenant_name\":\"...\",\"monthly_rent\":25000,\"city\":\"...\"}}]\n"
+        "Fill in as many fields as you can from the user's profile and conversation context. "
+        "Explain to the user what document you're generating and what details you used BEFORE the marker.\n"
+        "=== END DOCUMENT GENERATION ==="
+    )
+
+    # ── Language instruction ──
+    AI_LANG_NAMES = {
+        "en": "English", "hi": "Hindi", "bn": "Bengali", "ta": "Tamil", "te": "Telugu",
+        "mr": "Marathi", "gu": "Gujarati", "kn": "Kannada", "ml": "Malayalam", "pa": "Punjabi",
+        "or": "Odia", "es": "Spanish", "fr": "French", "de": "German", "zh": "Chinese (Simplified)",
+        "ja": "Japanese", "ko": "Korean", "pt": "Portuguese", "ru": "Russian", "ar": "Arabic",
+        "it": "Italian", "nl": "Dutch", "tr": "Turkish", "pl": "Polish", "sv": "Swedish",
+        "id": "Indonesian", "th": "Thai", "vi": "Vietnamese", "fa": "Persian", "he": "Hebrew",
+        "uk": "Ukrainian", "el": "Greek", "cs": "Czech", "ro": "Romanian", "hu": "Hungarian",
+        "fi": "Finnish", "da": "Danish", "no": "Norwegian", "ms": "Malay", "fil": "Filipino",
+        "sw": "Swahili",
+    }
+    ai_lang = AI_LANG_NAMES.get(body.language or "en", "English")
+    system += (
+        f"\n\n=== LANGUAGE INSTRUCTION ===\n"
+        f"You MUST respond in {ai_lang}. Always write your entire response in {ai_lang}, "
+        f"regardless of the language the user writes in. "
+        f"If the user explicitly asks you to change the app language (e.g. 'change language to Hindi', "
+        f"'switch to Spanish', 'ਪੰਜਾਬੀ ਵਿੱਚ ਬਦਲੋ'), include this special marker at the very START of your "
+        f"response: [LANG_CHANGE:CODE] where CODE is the ISO 639-1 code for that language "
+        f"(e.g. [LANG_CHANGE:hi] for Hindi, [LANG_CHANGE:es] for Spanish). Then continue your "
+        f"response normally in the requested language. The app will switch its UI language automatically.\n"
+        f"=== END LANGUAGE INSTRUCTION ==="
+    )
+
     if sources_meta:
         doc_list = "\n".join(f"- [doc:{s['document_id']}] {s['filename']} ({s['category']})" for s in sources_meta)
         system += (
@@ -401,6 +624,63 @@ async def send_message(conversation_id: str, body: MessageBody, user: dict = Dep
     )
 
 
+# ---------------- Panel Chat (embedded chat in non-chat pages) ----------------
+class PanelChatBody(BaseModel):
+    message: str
+    system_prompt: str = ""
+    language: Optional[str] = "en"
+
+
+@router.post("/chat/panel")
+async def panel_chat(body: PanelChatBody, user: dict = Depends(get_current_user)):
+    """
+    Lightweight chat endpoint for embedded panel chats (Vault, LoanPrep, etc.).
+    Streams a response using the Yolo-Auto AI. Does NOT create a conversation
+    or save messages — the frontend persists chat history in localStorage.
+    """
+    text = (body.message or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="No message provided")
+
+    # Build a minimal system prompt with user context
+    knowledge = await _get_user_knowledge(user["user_id"])
+    market_ctx = await get_portfolio_market_context(user["user_id"])
+
+    AI_LANG_NAMES = {
+        "en": "English", "hi": "Hindi", "bn": "Bengali", "ta": "Tamil", "te": "Telugu",
+        "mr": "Marathi", "gu": "Gujarati", "kn": "Kannada", "ml": "Malayalam", "pa": "Punjabi",
+        "or": "Odia", "es": "Spanish", "fr": "French", "de": "German", "zh": "Chinese (Simplified)",
+        "ja": "Japanese", "ko": "Korean", "pt": "Portuguese", "ru": "Russian", "ar": "Arabic",
+        "it": "Italian", "nl": "Dutch", "tr": "Turkish", "pl": "Polish", "sv": "Swedish",
+        "id": "Indonesian", "th": "Thai", "vi": "Vietnamese", "fa": "Persian", "he": "Hebrew",
+        "uk": "Ukrainian", "el": "Greek", "cs": "Czech", "ro": "Romanian", "hu": "Hungarian",
+        "fi": "Finnish", "da": "Danish", "no": "Norwegian", "ms": "Malay", "fil": "Filipino",
+        "sw": "Swahili",
+    }
+    ai_lang = AI_LANG_NAMES.get(body.language or "en", "English")
+
+    system = body.system_prompt or "You are a helpful AI assistant."
+    system += f"\n\nUser knowledge base:\n{knowledge}"
+    system += f"\n\n{market_ctx}"
+    system += f"\n\nYou MUST respond in {ai_lang}. Be concise and helpful."
+
+    chat = ai.make_chat(f"panel_{uuid.uuid4().hex}", system, "yolo")
+    user_message = UserMessage(text=text)
+
+    async def event_gen():
+        try:
+            async for token in ai.stream_message(chat, user_message):
+                yield f"data: {json.dumps({'delta': token})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+        yield f"data: {json.dumps({'done': True})}\n\n"
+
+    return StreamingResponse(
+        event_gen(), media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 # ---------------- Documents ----------------
 async def classify_document(data: bytes, filename: str, content_type: str):
     """Use Gemini to classify a document and extract key metadata. Best-effort."""
@@ -446,6 +726,24 @@ async def upload_document(
     path = f"{APP_NAME}/uploads/{user['user_id']}/{uuid.uuid4().hex}.{ext}"
     data = await file.read()
     content_type = file.content_type or storage.MIME_TYPES.get(ext, "application/octet-stream")
+
+    # ── Smart duplicate check ──
+    dup = await _check_duplicate(user["user_id"], data, file.filename, content_type)
+    if dup["is_duplicate"]:
+        existing = dup["existing"]
+        match_desc = "exact same file" if dup["match_type"] == "exact" else f"{int(dup.get('similarity', 0) * 100)}% similar name"
+        return {
+            "duplicate": True,
+            "match_type": dup["match_type"],
+            "similarity": dup.get("similarity", 1.0),
+            "message": f"This looks like a duplicate of \"{existing.get('original_filename', 'an existing file')}\" ({match_desc}). Already in your Vault.",
+            "existing_document_id": existing.get("document_id"),
+            "existing_filename": existing.get("original_filename"),
+            "existing_category": existing.get("category"),
+            "filename": file.filename,
+            "size": len(data),
+        }
+
     result = await run_in_threadpool(storage.put_object, path, data, content_type)
 
     metadata = {}
@@ -463,6 +761,7 @@ async def upload_document(
         "original_filename": file.filename,
         "content_type": content_type,
         "size": result.get("size", len(data)),
+        "content_hash": _content_hash(data),
         "category": final_category,
         "auto_classified": bool((auto_classify or category == "auto") and (detected or metadata)),
         "metadata": metadata,
@@ -557,7 +856,7 @@ async def fill_form(body: FormBody, user: dict = Depends(get_current_user)):
     return record
 
 
-@router.get("/forms")
+@router.get("/form-copies")
 async def list_forms(user: dict = Depends(get_current_user)):
     forms = await db.form_copies.find({"user_id": user["user_id"]}, {"_id": 0}).sort("created_at", -1).to_list(200)
     return forms
@@ -722,6 +1021,8 @@ class InvestmentBody(BaseModel):
     amount_invested: float = 0
     current_value: float = 0
     purchase_date: Optional[str] = ""
+    ticker: Optional[str] = ""
+    market: Optional[str] = ""
     notes: Optional[str] = ""
 
 
@@ -731,6 +1032,8 @@ class InvestmentUpdate(BaseModel):
     amount_invested: Optional[float] = None
     current_value: Optional[float] = None
     purchase_date: Optional[str] = None
+    ticker: Optional[str] = None
+    market: Optional[str] = None
     notes: Optional[str] = None
 
 
@@ -792,6 +1095,80 @@ async def delete_investment(investment_id: str, user: dict = Depends(get_current
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Investment not found")
     return {"ok": True}
+
+
+@router.post("/investments/chat-action")
+async def investment_chat_action(body: dict, user: dict = Depends(get_current_user)):
+    """
+    Execute an investment action emitted by the AI chat.
+    body: {"action": "add"|"edit"|"delete", ...}
+    - add:    {"action":"add","data":{name,asset_type,amount_invested,...}}
+    - edit:   {"action":"edit","name":"Apple","updates":{current_value:3200,...}}
+    - delete: {"action":"delete","name":"Apple"}
+    """
+    action = body.get("action", "")
+
+    if action == "add":
+        data = body.get("data", {})
+        if not data.get("name"):
+            return {"ok": False, "error": "Name is required"}
+        inv = {
+            "investment_id": str(uuid.uuid4()),
+            "user_id": user["user_id"],
+            "created_at": now_iso(),
+            "name": data.get("name", ""),
+            "asset_type": data.get("asset_type", "stock"),
+            "amount_invested": float(data.get("amount_invested", 0)),
+            "current_value": float(data.get("current_value", 0)),
+            "purchase_date": data.get("purchase_date", ""),
+            "ticker": data.get("ticker", ""),
+            "market": data.get("market", ""),
+            "notes": data.get("notes", ""),
+        }
+        await db.investments.insert_one(dict(inv))
+        inv.pop("_id", None)
+        return {"ok": True, "action": "add", "investment": inv}
+
+    elif action == "edit":
+        name = body.get("name", "")
+        updates = body.get("updates", {})
+        if not name:
+            return {"ok": False, "error": "Investment name is required"}
+        # Find by name (case-insensitive)
+        existing = await db.investments.find_one(
+            {"user_id": user["user_id"], "name": {"$regex": f"^{re.escape(name)}$", "$options": "i"}},
+            {"_id": 0}
+        )
+        if not existing:
+            return {"ok": False, "error": f"Investment '{name}' not found"}
+        # Convert numeric fields
+        clean_updates = {}
+        for k, v in updates.items():
+            if k in ("amount_invested", "current_value"):
+                clean_updates[k] = float(v) if v else 0
+            else:
+                clean_updates[k] = v
+        await db.investments.update_one(
+            {"investment_id": existing["investment_id"], "user_id": user["user_id"]},
+            {"$set": clean_updates}
+        )
+        updated = await db.investments.find_one(
+            {"investment_id": existing["investment_id"]}, {"_id": 0}
+        )
+        return {"ok": True, "action": "edit", "investment": updated}
+
+    elif action == "delete":
+        name = body.get("name", "")
+        if not name:
+            return {"ok": False, "error": "Investment name is required"}
+        res = await db.investments.delete_one(
+            {"user_id": user["user_id"], "name": {"$regex": f"^{re.escape(name)}$", "$options": "i"}}
+        )
+        if res.deleted_count == 0:
+            return {"ok": False, "error": f"Investment '{name}' not found"}
+        return {"ok": True, "action": "delete", "name": name}
+
+    return {"ok": False, "error": f"Unknown action: {action}"}
 
 
 # ---------------- Life Event Guides ----------------
@@ -1021,7 +1398,262 @@ async def get_reminders(window_days: int = 90, user: dict = Depends(get_current_
     return {"count": len(items), "reminders": items}
 
 
-# ---------------- Dashboard ----------------
+# ---------------- Smart Add (AI-powered natural-language data entry) ----------------
+class SmartAddBody(BaseModel):
+    text: str
+    target: str = "auto"  # "auto" | "investment" | "insurance" | "contact" | "profile" | "life_event"
+                         # | "loan_prep" | "bundle" | "form_fill"  (action targets — return params, don't save)
+
+
+@router.post("/chat/smart-add")
+async def smart_add(body: SmartAddBody, user: dict = Depends(get_current_user)):
+    """
+    Accept natural-language text, use AI to extract structured data, and save
+    it to the appropriate MongoDB collection. Lets users chat their information
+    instead of filling out forms field-by-field.
+
+    Targets:
+      - investment:  name, asset_type, amount_invested, current_value, purchase_date, notes
+      - insurance:   policy_type, provider, policy_number, sum_assured, premium_amount, ...
+      - contact:     name, relationship, email, phone, access_level, notes
+      - profile:     any profile fields (personal, contact, identity, financial, etc.)
+      - life_event:  event key from LIFE_EVENTS
+      - auto:        AI decides which target based on the text content
+    """
+    text = (body.text or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="No text provided")
+
+    target = body.target
+    if target == "auto":
+        # Let AI decide the target from the text
+        target_prompt = (
+            "Classify this user message into exactly one category: "
+            "'investment', 'insurance', 'contact', 'profile', 'life_event'. "
+            "Return ONLY the category word, nothing else.\n\n"
+            f"Message: {text[:500]}"
+        )
+        try:
+            chat_cls = ai.make_chat(f"cls_{uuid.uuid4().hex}", "You are a classifier. Return only one word.", "yolo")
+            raw = await ai.complete(chat_cls, target_prompt)
+            target = (raw or "").strip().lower().replace(".", "").replace(",", "")
+            if target not in ("investment", "insurance", "contact", "profile", "life_event"):
+                target = "investment"  # safe fallback
+        except Exception:
+            target = "investment"
+
+    # Build extraction prompt per target
+    if target == "investment":
+        schema_desc = (
+            '{"name": str, "asset_type": str (one of: stock, mutual_fund, etf, crypto, '
+            'real_estate, gold, bond, fixed_deposit, ppf, ulip, other), '
+            '"amount_invested": number, "current_value": number, '
+            '"purchase_date": "YYYY-MM-DD" or "", "ticker": str (stock symbol like AAPL, '
+            'RELIANCE.NS, BTC-USD — empty if not a publicly traded asset), '
+            '"market": str (US, NSE, BSE, Crypto — empty if unknown), '
+            '"notes": str}'
+        )
+        collection = db.investments
+        id_field = "investment_id"
+    elif target == "insurance":
+        schema_desc = (
+            '{"policy_type": str (one of: life_term, life_whole, ulip, health, '
+            'critical_illness, disability, personal_accident, vehicle, home, travel, '
+            'pension_annuity, other), "provider": str, "policy_number": str, '
+            '"sum_assured": str, "premium_amount": str, "premium_frequency": str '
+            '(monthly, quarterly, half_yearly, yearly), "start_date": "YYYY-MM-DD", '
+            '"maturity_date": "YYYY-MM-DD", "nominee_name": str, '
+            '"nominee_relationship": str, "riders": str, "claim_contact": str, '
+            '"agent_contact": str, "notes": str}'
+        )
+        collection = db.insurance_policies
+        id_field = "policy_id"
+    elif target == "contact":
+        schema_desc = (
+            '{"name": str, "relationship": str (spouse, child, parent, sibling, '
+            'friend, lawyer, accountant, other), "email": str, "phone": str, '
+            '"access_level": str (full, financial, insurance), "notes": str}'
+        )
+        collection = db.legacy_contacts
+        id_field = "contact_id"
+    elif target == "profile":
+        schema_desc = (
+            'A JSON object with any of these sections: '
+            '{"personal": {"full_name": str, "date_of_birth": str, "gender": str, '
+            '"nationality": str, "marital_status": str}, '
+            '"contact": {"email": str, "phone": str, "address_line": str, "city": str, '
+            '"state": str, "postal_code": str, "country": str}, '
+            '"financial": {"annual_income": str, "employer": str, "occupation": str, '
+            '"bank_name": str, "account_number": str}, '
+            '"family": {"spouse_name": str, "children": str, '
+            '"emergency_contact_name": str, "emergency_contact_phone": str}}. '
+            'Only include fields explicitly mentioned in the message.'
+        )
+    elif target == "life_event":
+        schema_desc = (
+            '{"event": str (one of: marriage, new_baby, new_home, new_job, retirement, '
+            'medical_event, immigration, education, inheritance, other)}'
+        )
+    elif target == "loan_prep":
+        schema_desc = (
+            '{"bank": str, "loan_type": str (e.g. Home Loan, Personal Loan, Car Loan, '
+            'Education Loan, Business Loan), "employment_type": str (Salaried, '
+            'Self-Employed Professional, Self-Employed Non-Professional), '
+            '"purchase_type": str (New home, Resale home, "Plot / construction", '
+            '"Not applicable")}'
+        )
+    elif target == "bundle":
+        schema_desc = (
+            '{"purpose": str, "suggested_name": str}'
+        )
+    elif target == "form_fill":
+        schema_desc = (
+            '{"form_title": str, "purpose": str, "form_content": str}'
+        )
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown target: {target}")
+
+    system = (
+        f"You are a data extraction assistant. Extract structured data from the user's "
+        f"natural-language message and return ONLY valid JSON matching this schema:\n"
+        f"{schema_desc}\n"
+        f"Use empty strings for unknown fields. Use numbers for amounts (strip currency symbols). "
+        f"Dates must be YYYY-MM-DD format. Do not include any text outside the JSON."
+    )
+
+    try:
+        chat = ai.make_chat(f"smart_{uuid.uuid4().hex}", system, "yolo")
+        raw = await ai.complete(chat, f"Extract data from this message:\n{text}")
+        parsed = ai.parse_json(raw) or {}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"AI extraction failed: {str(e)[:100]}")
+
+    if not parsed:
+        raise HTTPException(status_code=422, detail="Could not extract structured data from your message")
+
+    # ── Action targets: return extracted params, don't save to DB ──
+    if target in ("loan_prep", "bundle", "form_fill"):
+        return {"target": target, "saved": False, "params": parsed}
+
+    # Save to the appropriate collection
+    record_id = str(uuid.uuid4())
+    now = now_iso()
+
+    if target == "profile":
+        # Merge extracted fields into the user's existing profile
+        profile = user.get("profile", {}) or {}
+        for section, fields in parsed.items():
+            if not isinstance(fields, dict):
+                continue
+            if section not in profile:
+                profile[section] = {}
+            profile[section].update({k: v for k, v in fields.items() if v})
+        await db.users.update_one(
+            {"user_id": user["user_id"]},
+            {"$set": {"profile": profile, "updated_at": now}}
+        )
+        return {"target": "profile", "saved": True, "profile": profile}
+
+    elif target == "life_event":
+        event_key = parsed.get("event", "other")
+        ev = LIFE_EVENTS.get(event_key)
+        title = ev["title"] if ev else parsed.get("event", "Life Event")
+        doc = {
+            "user_id": user["user_id"],
+            "event": event_key,
+            "title": title,
+            "checklist": [],
+            "recommended_categories": ev["categories"] if ev else [],
+            "updated_at": now,
+        }
+        await db.life_event_trackers.update_one(
+            {"user_id": user["user_id"], "event": event_key},
+            {"$set": doc, "$setOnInsert": {"created_at": now}},
+            upsert=True,
+        )
+        return {"target": "life_event", "saved": True, "event": event_key, "title": title}
+
+    else:
+        # investment, insurance, contact — insert a new record
+        record = {id_field: record_id, "user_id": user["user_id"], "created_at": now}
+        record.update({k: v for k, v in parsed.items() if v is not None})
+        await collection.insert_one(dict(record))
+        record.pop("_id", None)
+        return {"target": target, "saved": True, "record": record}
+
+
+# ---------------- AI-powered UI translation ----------------
+class TranslateBody(BaseModel):
+    language: str
+    language_name: str  # e.g. "Hindi"
+    keys: dict  # {"key": "English text", ...}
+
+
+@router.post("/i18n/translate")
+async def translate_ui(body: TranslateBody, user: dict = Depends(get_current_user)):
+    """
+    Translate UI keys into the target language using AI.
+    Caches results in MongoDB so repeated requests are instant.
+    Returns {"language": "hi", "translations": {"key": "translated text", ...}}
+    """
+    if not body.keys:
+        return {"language": body.language, "translations": {}}
+
+    # Check cache
+    cached = await db.i18n_cache.find_one({"language": body.language}, {"_id": 0})
+    if cached and cached.get("translations"):
+        # Return cached translations for all requested keys
+        cached_tr = cached["translations"]
+        result = {}
+        missing = {}
+        for k, v in body.keys.items():
+            if k in cached_tr:
+                result[k] = cached_tr[k]
+            else:
+                missing[k] = v
+        if not missing:
+            return {"language": body.language, "translations": result}
+        # Translate only missing keys
+        body.keys = missing
+
+    # Build a single batch translation prompt — translate in chunks of 20 to avoid AI timeout
+    import json as _json
+    all_keys = list(body.keys.items())
+    chunk_size = 20
+    parsed = {}
+    for i in range(0, len(all_keys), chunk_size):
+        chunk = dict(all_keys[i:i + chunk_size])
+        keys_json = _json.dumps(chunk, ensure_ascii=False)
+        system = (
+            f"You are a professional UI translator. Translate the following JSON object of UI strings "
+            f"into {body.language_name}. Keep the same JSON keys. Translate ONLY the values. "
+            f"Return ONLY valid JSON with the same keys. Do not add any explanation. "
+            f"Preserve any placeholders like {{name}} or %s. Keep brand names like 'Everkin' untranslated."
+        )
+        try:
+            chat = ai.make_chat(f"i18n_{uuid.uuid4().hex}", system, "yolo")
+            raw = await ai.complete(chat, f"Translate these UI strings to {body.language_name}:\n{keys_json}")
+            chunk_parsed = ai.parse_json(raw) or {}
+            parsed.update(chunk_parsed)
+        except Exception:
+            pass  # continue with next chunk even if one fails
+
+    # Merge with existing cache
+    existing = cached.get("translations", {}) if cached else {}
+    existing.update({k: v for k, v in parsed.items() if v})
+    await db.i18n_cache.update_one(
+        {"language": body.language},
+        {"$set": {"translations": existing, "updated_at": now_iso()}},
+        upsert=True,
+    )
+
+    # Return translations for the requested keys (fall back to English)
+    result = {}
+    for k in body.keys:
+        result[k] = existing.get(k, body.keys[k])
+    return {"language": body.language, "translations": result}
+
+
 @router.get("/dashboard/stats")
 async def dashboard_stats(user: dict = Depends(get_current_user)):
     profile = user.get("profile", {}) or {}

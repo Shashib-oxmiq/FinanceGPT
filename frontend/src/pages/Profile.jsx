@@ -3,6 +3,9 @@ import { toast } from "sonner";
 import { api } from "../lib/api";
 import { Page, PageHeader } from "../components/Page";
 import { FloppyDisk, Sparkle } from "@phosphor-icons/react";
+import SmartAddBar from "../components/SmartAddBar";
+import PanelChat from "../components/PanelChat";
+import { useLanguage } from "../contexts/LanguageContext";
 
 const SECTION_LABELS = {
   personal: "Personal", contact: "Contact", identity: "Identity Documents",
@@ -13,6 +16,7 @@ const fieldLabel = (f) => f.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpper
 const SENSITIVE = ["ssn", "account_number", "passport_number", "national_id", "alien_number"];
 
 export default function Profile() {
+  const { t } = useLanguage();
   const [schema, setSchema] = useState({});
   const [profile, setProfile] = useState({});
   const [completeness, setCompleteness] = useState(0);
@@ -62,18 +66,32 @@ export default function Profile() {
     <Page>
       <PageHeader
         testid="profile-header"
-        title="Your Profile"
-        subtitle="This structured data powers form auto-fill and your legacy handover pack. Sensitive fields are masked."
+        title={t("page.profile.title")}
+        subtitle={t("page.profile.subtitle")}
         actions={
           <div className="flex items-center gap-2">
-            <button onClick={autofill} disabled={autofilling} data-testid="autofill-profile" className="flex items-center gap-2 border border-border px-4 py-2.5 rounded-md text-sm font-semibold hover:bg-secondary transition-colors disabled:opacity-60">
+            <button onClick={autofill} disabled={autofilling} data-testid="autofill-profile" className="flex items-center gap-2 border border-border px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-secondary transition-colors disabled:opacity-60">
               <Sparkle size={16} weight="duotone" className={autofilling ? "animate-spin" : ""} /> {autofilling ? "Reading…" : "Auto-fill from documents"}
             </button>
-            <button onClick={save} disabled={busy} data-testid="save-profile" className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-md text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60">
+            <button onClick={save} disabled={busy} data-testid="save-profile" className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60">
               <FloppyDisk size={16} weight="duotone" /> {busy ? "Saving…" : "Save"}
             </button>
           </div>
         }
+      />
+
+      <SmartAddBar target="profile" onAdded={() => {
+        api.get("/profile").then(({ data }) => {
+          setSchema(data.schema);
+          setProfile(data.profile || {});
+          setCompleteness(data.completeness);
+        });
+      }} />
+
+      <PanelChat
+        contextLabel="Profile"
+        systemHint="The user is on the Profile page. Help them understand what profile fields are complete vs missing, suggest what information they should add, and answer questions about their personal, contact, financial, and family details."
+        storageKey="panel_chat_profile"
       />
 
       <div className="mb-6 flex items-center gap-3">
@@ -85,7 +103,7 @@ export default function Profile() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {Object.entries(schema).map(([section, fields]) => (
-          <div key={section} className="border border-border rounded-lg p-6 bg-card" data-testid={`section-${section}`}>
+          <div key={section} className="border border-border rounded-2xl p-6 bg-card" data-testid={`section-${section}`}>
             <h3 className="font-heading text-lg font-bold mb-4">{SECTION_LABELS[section] || section}</h3>
             <div className="space-y-3">
               {fields.map((f) => (
@@ -96,7 +114,7 @@ export default function Profile() {
                     value={profile[section]?.[f] || ""}
                     data-testid={`field-${section}-${f}`}
                     onChange={(e) => setField(section, f, e.target.value)}
-                    className="mt-1 w-full bg-background border border-input rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
+                    className="mt-1 w-full bg-background border border-input rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
                   />
                 </div>
               ))}
