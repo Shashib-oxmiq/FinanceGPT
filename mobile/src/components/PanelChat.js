@@ -1,11 +1,14 @@
 // ── PanelChat Component ──────────────────────────────────────────────────────
-// Collapsible AI chat panel on every screen — same as web app's PanelChat
+// Collapsible AI chat panel on every screen — uses full system prompt with
+// financial data, saves conversations to DB so they appear in the main Chat screen.
 import React, { useState, useRef, useCallback } from "react";
-import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, KeyboardAvoidingView, Platform, Animated } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, KeyboardAvoidingView, Platform, Animated, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
-import { streamChat } from "../services/ai";
+import { streamChat, buildSystemPrompt } from "../services/ai";
+import { api } from "../services/api";
+import { getMemoryContext, autoExtractMemories } from "../services/aiMemory";
 import { theme } from "../theme";
 
 const CONTEXT_HINTS = {
@@ -22,6 +25,14 @@ const CONTEXT_HINTS = {
   Legacy: "The user is doing legacy/estate planning. Help with trusted contacts and secure shares.",
   Bundler: "The user is creating document bundles. Help with bundling and sharing.",
   FormFiller: "The user is filling out forms. Help with form fields and requirements.",
+  Loans: "The user is viewing their loans. Help with EMI calculations, refinancing, and debt management.",
+  Bills: "The user is viewing their bills. Help with bill tracking and payment reminders.",
+  Tax: "The user is viewing tax information. Help with tax filing, deductions, and regime comparison.",
+  Retirement: "The user is viewing retirement planning. Help with corpus calculation and NPS/PPF/EPF.",
+  Education: "The user is viewing education planning. Help with future cost calculation and SIP planning.",
+  Property: "The user is viewing their properties. Help with valuation, tax, and mutation.",
+  MedicalRecords: "The user is viewing medical records. Help with prescriptions, lab reports, and health tracking.",
+  LegalRights: "The user is asking about legal rights. Help with consumer, tenant, employee, and citizen rights.",
 };
 
 export default function PanelChat({ context, title }) {
@@ -31,6 +42,7 @@ export default function PanelChat({ context, title }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
+  const [conversationId, setConversationId] = useState(null);
   const flatRef = useRef(null);
   const heightAnim = useRef(new Animated.Value(0)).current;
 
@@ -45,25 +57,61 @@ export default function PanelChat({ context, title }) {
     const text = input.trim();
     setInput("");
     setStreaming(true);
-    setMessages((m) => [...m, { role: "user", content: text, id: Date.now() + "u" }]);
-
-    const sys = `You are Everkin AI assistant. ${CONTEXT_HINTS[context] || ""}\n` +
-      `User profile: ${JSON.stringify(user?.profile || {})}\n` +
-      `Respond in ${lang === "en" ? "English" : lang}. Be concise and helpful.`;
-
-    const assistantId = Date.now() + "a";
-    setMessages((m) => [...m, { role: "assistant", content: "", id: assistantId }]);
 
     try {
-      const full = await streamChat(sys, text, "qwen3.8-27b", (delta) => {
+      // Add user message to UI immediately
+      setMessages((m) => [...m, { role: "user", content: text, id: Date.now() + "u" }]);
+
+      // ── Create or reuse conversation — saved to DB so it appears in Chat screen ──
+      let convId = conversationId;
+      if (!convId) {
+        try {
+          const conv = await api.createConversation(user.user_id, `[${context}] ${text.slice(0, 40)}`);
+          convId = conv.conversation_id;
+          setConversationId(convId);
+        } catch (e) {
+          console.warn("PanelChat: createConversation failed:", e.message);
+        }
+      }
+
+      // Save user message to DB
+      if (convId) {
+        api.saveMessage(convId, user.user_id, "user", text).catch(() => {});
+      }
+
+      // ── Build full system prompt with ALL financial data ──
+      const hint = CONTEXT_HINTS[context] || `The user is on the ${context} screen.`;
+      let system = "";
+      try {
+        const history = messages.map((m) => ({ role: m.role, content: m.content }));
+        const memoryCtx = await getMemoryContext(user.user_id).catch(() => "");
+        system = await buildSystemPrompt(user, history, lang) + memoryCtx + `\n\n=== CURRENT SCREEN ===\n${hint}`;
+      } catch (e) {
+        console.warn("PanelChat: buildSystemPrompt failed, using fallback:", e.message);
+        system = `You are Everkin — a personal AI assistant for money, insurance, property, legal documents, taxes, and family planning. ${hint}\nRespond in ${lang === "en" ? "English" : lang}. Be concise and helpful.`;
+      }
+
+      // Auto-extract memories
+      autoExtractMemories(user.user_id, text).catch(() => {});
+
+      // Add assistant placeholder
+      const assistantId = Date.now() + "a";
+      setMessages((m) => [...m, { role: "assistant", content: "", id: assistantId }]);
+
+      // Stream AI response
+      const full = await streamChat(system, text, "qwen3.8-27b", (delta) => {
         setMessages((m) => m.map((msg) =>
           msg.id === assistantId ? { ...msg, content: msg.content + delta } : msg
         ));
       });
+
+      // Save assistant message to DB
+      if (convId) {
+        api.saveMessage(convId, user.user_id, "assistant", full, { model: "qwen3.8-27b" }).catch(() => {});
+      }
     } catch (e) {
-      setMessages((m) => m.map((msg) =>
-        msg.id === assistantId ? { ...msg, content: `Error: ${e.message}` } : msg
-      ));
+      const aid = Date.now() + "a";
+      setMessages((m) => [...m, { role: "assistant", content: `Sorry — I couldn't process that. ${e.message}`, id: aid }]);
     } finally {
       setStreaming(false);
     }
@@ -108,7 +156,7 @@ export default function PanelChat({ context, title }) {
               editable={!streaming}
             />
             <TouchableOpacity style={styles.sendBtn} onPress={send} disabled={streaming || !input.trim()}>
-              <Ionicons name="send" size={14} color="#fff" />
+              {streaming ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="send" size={14} color="#fff" />}
             </TouchableOpacity>
           </View>
         </View>
@@ -118,19 +166,19 @@ export default function PanelChat({ context, title }) {
 }
 
 const styles = StyleSheet.create({
-  container: { paddingHorizontal: 16, paddingTop: 8 },
+  container: { marginTop: 12 },
   trigger: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 10, paddingHorizontal: 14, backgroundColor: theme.card, borderRadius: 12, borderWidth: 1, borderColor: theme.border },
-  triggerText: { flex: 1, fontSize: 13, color: theme.textSecondary, fontWeight: "500" },
-  badge: { backgroundColor: theme.primary, borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2, minWidth: 20, alignItems: "center" },
-  badgeText: { fontSize: 10, color: "#fff", fontWeight: "700" },
-  panel: { marginTop: 8, backgroundColor: theme.card, borderRadius: 16, borderWidth: 1, borderColor: theme.border, padding: 12, maxHeight: 300 },
-  empty: { fontSize: 13, color: theme.muted, textAlign: "center", paddingVertical: 20 },
-  msg: { maxWidth: "85%", borderRadius: 12, padding: 10, marginBottom: 6 },
-  msgUser: { alignSelf: "flex-end", backgroundColor: theme.primary },
-  msgUserText: { color: "#fff", fontSize: 13, lineHeight: 18 },
-  msgAI: { alignSelf: "flex-start", backgroundColor: theme.input, borderWidth: 1, borderColor: theme.border },
-  msgAIText: { color: theme.text, fontSize: 13, lineHeight: 18 },
+  triggerText: { fontSize: 13, fontWeight: "600", color: theme.primary, flex: 1 },
+  badge: { backgroundColor: theme.primary, borderRadius: 10, minWidth: 20, height: 20, alignItems: "center", justifyContent: "center", paddingHorizontal: 6 },
+  badgeText: { color: "#fff", fontSize: 11, fontWeight: "700" },
+  panel: { backgroundColor: theme.card, borderRadius: 12, borderWidth: 1, borderColor: theme.border, marginTop: 8, padding: 8 },
+  empty: { fontSize: 13, color: theme.muted, padding: 16, textAlign: "center" },
+  msg: { padding: 8, borderRadius: 10, marginVertical: 2 },
+  msgUser: { backgroundColor: theme.primary + "15", alignSelf: "flex-end", maxWidth: "85%" },
+  msgAI: { backgroundColor: theme.border + "30", alignSelf: "flex-start", maxWidth: "90%" },
+  msgUserText: { fontSize: 13, color: theme.text },
+  msgAIText: { fontSize: 13, color: theme.text },
   inputRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
-  input: { flex: 1, backgroundColor: theme.input, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, fontSize: 13, color: theme.text, borderWidth: 1, borderColor: theme.border },
+  input: { flex: 1, borderWidth: 1, borderColor: theme.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, color: theme.text },
   sendBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: theme.primary, justifyContent: "center", alignItems: "center" },
 });
