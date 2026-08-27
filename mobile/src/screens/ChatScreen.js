@@ -139,33 +139,39 @@ export default function ChatScreen({ navigation }) {
     if (!text || streaming || !user) return;
     setInput("");
 
-    let convId = activeId;
-    if (!convId) {
-      const conv = await api.createConversation(user.user_id, text.slice(0, 40));
-      setConversations([conv, ...conversations]);
-      convId = conv.conversation_id;
-      setActiveId(convId);
-    }
-
-    // Add user message
-    const userMsg = { role: "user", content: text, message_id: Date.now() + "u" };
-    setMessages((m) => [...m, userMsg]);
-    await api.saveMessage(convId, user.user_id, "user", text);
-
-    // Build system prompt
-    const history = messages.map((m) => ({ role: m.role, content: m.content }));
-    const memoryCtx = await getMemoryContext(user.user_id);
-    const system = await buildSystemPrompt(user, history, lang) + memoryCtx;
-
-    // Auto-extract memories from user message
-    autoExtractMemories(user.user_id, text).catch(() => {});
-
-    // Add assistant placeholder
-    const assistantId = Date.now() + "a";
-    setMessages((m) => [...m, { role: "assistant", content: "", message_id: assistantId }]);
-    setStreaming(true);
-
     try {
+      let convId = activeId;
+      if (!convId) {
+        const conv = await api.createConversation(user.user_id, text.slice(0, 40));
+        setConversations([conv, ...conversations]);
+        convId = conv.conversation_id;
+        setActiveId(convId);
+      }
+
+      // Add user message
+      const userMsg = { role: "user", content: text, message_id: Date.now() + "u" };
+      setMessages((m) => [...m, userMsg]);
+      await api.saveMessage(convId, user.user_id, "user", text).catch(() => {});
+
+      // Build system prompt (wrapped in try/catch — if data loading fails, fall back to basic prompt)
+      const history = messages.map((m) => ({ role: m.role, content: m.content }));
+      let system = "";
+      try {
+        const memoryCtx = await getMemoryContext(user.user_id).catch(() => "");
+        system = await buildSystemPrompt(user, history, lang) + memoryCtx;
+      } catch (e) {
+        console.warn("buildSystemPrompt failed, using fallback:", e.message);
+        system = `You are Everkin — a personal AI assistant for money, insurance, property, legal documents, taxes, and family planning. Be conversational, warm, and concise. Respond in ${lang || "English"}.`;
+      }
+
+      // Auto-extract memories from user message
+      autoExtractMemories(user.user_id, text).catch(() => {});
+
+      // Add assistant placeholder
+      const assistantId = Date.now() + "a";
+      setMessages((m) => [...m, { role: "assistant", content: "", message_id: assistantId }]);
+      setStreaming(true);
+
       const fullText = await streamChat(system, text, "qwen3.8-27b", (delta) => {
         setMessages((m) => m.map((msg) =>
           msg.message_id === assistantId ? { ...msg, content: msg.content + delta } : msg
