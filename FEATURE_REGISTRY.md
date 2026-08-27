@@ -9,7 +9,7 @@
 > **Platforms**: `desktop` = Electron/web app · `mobile` = React Native iOS app
 >
 > Last updated: 2026-08-27
-> Total features registered: 219
+> Total features registered: 226
 
 ---
 
@@ -380,16 +380,30 @@
 
 ---
 
+## F-INTEL · Financial Intelligence Layer
+
+| ID | Feature | Desktop | Mobile | Status | Notes |
+|----|---------|---------|--------|--------|-------|
+| F-220 | Unified Financial Profile Engine | missing | active | active | Real-time composite: net worth, cash flow, risk, goals, upcoming commitments — injected into every AI conversation |
+| F-221 | Cross-Feature Intelligence Layer | missing | active | active | Scans all data for cross-feature insights (FD vs loan, insurance gap, goal shortfalls), ranked by severity |
+| F-222 | Life Scenario Simulator | missing | active | active | "What if" analysis: buy house, take loan, have child, job change — full financial impact projection |
+| F-223 | Goal Optimization Engine | missing | active | active | Multi-goal priority allocation: emergency > insurance > debt > education > retirement > house |
+| F-224 | Proactive Financial Coach | missing | active | active | AI-initiated conversations: critical alerts, weekly checkups, deadline nudges, milestone celebrations |
+| F-225 | Cash Flow Timeline | missing | active | active | 12-month projection with seasonal adjustments (Diwali, weddings), stress test (20% income cut) |
+| F-226 | Adaptive Financial Literacy | missing | active | active | Identifies knowledge gaps from behavior, teaches with analogies (term insurance, inflation, compound interest) |
+
+---
+
 ## Summary Statistics
 
 | Metric | Count |
 |--------|-------|
-| Total features registered | 219 |
+| Total features registered | 226 |
 | Active on both platforms | 115 |
 | Desktop-only (active) | 38 |
-| Mobile-only (active) | 51 |
+| Mobile-only (active) | 58 |
 | Missing on mobile | 25 |
-| Missing on desktop | 39 |
+| Missing on desktop | 46 |
 | Partial | 5 |
 | Deprecated | 7 |
 
@@ -454,6 +468,7 @@
 | 2026-08-27 | F-191 to F-200: 10 next-generation features added (Health Score, Daily Briefing, Voice Input, Goal Planning, Emergency Access, Proactive Notifications, Receipt Scanner, Family Vault, WhatsApp framework, Offline AI framework) | LivAgent |
 | 2026-08-27 | F-201 to F-207: 7 life-dimension expansion features (Govt Schemes, Insurance Gap Analysis, Document Expiry, Medical Records, Legal Rights, AI Memory, Smart Reminders) | LivAgent |
 | 2026-08-27 | F-208 to F-219: 12 more life-dimension features (Credit/Loans, Bills, Education, Retirement, Tax Filing, Property, Premium Calendar, Tax Saving, Bilingual Docs, Health Score Trend, OCR Search, Portfolio Rebalancing) | LivAgent |
+| 2026-08-27 | F-220 to F-226: 7 financial intelligence features (Unified Profile, Cross-Feature Insights, Scenario Simulator, Goal Optimizer, Proactive Coach, Cash Flow Timeline, Adaptive Literacy) | LivAgent |
 
 ---
 

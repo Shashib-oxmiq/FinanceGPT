@@ -364,6 +364,30 @@ export async function initDB() {
       breakdown TEXT DEFAULT '{}',
       recorded_at TEXT DEFAULT (datetime('now'))
     );
+
+    -- Coach messages (F-224)
+    CREATE TABLE IF NOT EXISTS coach_messages (
+      coach_id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      type TEXT NOT NULL,
+      priority INTEGER DEFAULT 3,
+      title TEXT,
+      message TEXT,
+      actions TEXT DEFAULT '[]',
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- Cached insights (F-221)
+    CREATE TABLE IF NOT EXISTS insights_cache (
+      insight_id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      severity TEXT,
+      category TEXT,
+      title TEXT,
+      detail TEXT,
+      action TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
   `);
 
   return db;

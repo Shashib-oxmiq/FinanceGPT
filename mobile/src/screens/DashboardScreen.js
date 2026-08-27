@@ -10,6 +10,9 @@ import { getGoals, getGoalProgress } from "../services/goals";
 import SmartAddBar from "../components/SmartAddBar";
 import PanelChat from "../components/PanelChat";
 import { theme, formatMoney } from "../theme";
+import { buildFinancialProfile } from "../services/financialProfile";
+import { generateInsights } from "../services/insightEngine";
+import { checkAndCoach } from "../services/proactiveCoach";
 
 export default function DashboardScreen({ navigation }) {
   const { t } = useLanguage();
@@ -20,6 +23,9 @@ export default function DashboardScreen({ navigation }) {
   const [healthScore, setHealthScore] = useState(null);
   const [goals, setGoals] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [profile, setProfile] = useState(null);
+  const [topInsights, setTopInsights] = useState([]);
+  const [coachMsg, setCoachMsg] = useState(null);
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -35,6 +41,16 @@ export default function DashboardScreen({ navigation }) {
       try { await recordWeeklySnapshot(user.user_id, hs.score, hs.categories); const trend = await getTrendDirection(user.user_id); if (trend) setHealthScore({ ...hs, trend }); } catch (e) { console.warn(e); }
       const g = await getGoals(user.user_id);
       setGoals(g);
+      // Build unified profile + insights + coach
+      try {
+        const ins = await api.getInsurance(user.user_id).catch(() => []);
+        const fp = await buildFinancialProfile(user.user_id, inv, ins, r.reminders || []);
+        setProfile(fp);
+        const insights = await generateInsights(user.user_id, inv, ins);
+        setTopInsights(insights.slice(0, 3));
+        const coach = await checkAndCoach(user.user_id, 0, inv, ins, r.reminders || []);
+        setCoachMsg(coach);
+      } catch (e) { console.warn("Profile/coach error:", e); }
     } catch (e) { console.error(e); }
   }, [user]);
 
@@ -108,6 +124,43 @@ export default function DashboardScreen({ navigation }) {
               ))}
             </View>
           )}
+        </View>
+      )}
+
+      {/* Proactive Coach Banner */}
+      {coachMsg && (
+        <View style={[styles.coachBanner, { borderLeftColor: coachMsg.priority === 1 ? "#ef4444" : coachMsg.priority === 2 ? "#f59e0b" : theme.primary }]}>
+          <Ionicons name={coachMsg.priority === 1 ? "warning" : coachMsg.priority === 2 ? "time" : "chatbubble"} size={18} color={coachMsg.priority === 1 ? "#ef4444" : coachMsg.priority === 2 ? "#f59e0b" : theme.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.coachTitle}>{coachMsg.title}</Text>
+            <Text style={styles.coachMsg} numberOfLines={3}>{coachMsg.message}</Text>
+          </View>
+        </View>
+      )}
+
+      {/* Unified Profile Card */}
+      {profile && (
+        <View style={styles.profileCard}>
+          <Text style={styles.profileTitle}>📊 Financial Snapshot</Text>
+          <View style={styles.profileRow}>
+            <View style={styles.profileStat}><Text style={styles.profileStatVal}>{formatMoney(profile.netWorth.netWorth)}</Text><Text style={styles.profileStatLabel}>Net Worth</Text></View>
+            <View style={styles.profileStat}><Text style={[styles.profileStatVal, { color: profile.cashFlow.isNegative ? "#ef4444" : theme.accent }]}>{formatMoney(profile.cashFlow.monthlySurplus)}</Text><Text style={styles.profileStatLabel}>Monthly Surplus</Text></View>
+            <View style={styles.profileStat}><Text style={[styles.profileStatVal, { color: profile.risk.dti >= 40 ? "#ef4444" : theme.text }]}>{profile.risk.dti}%</Text><Text style={styles.profileStatLabel}>DTI</Text></View>
+          </View>
+        </View>
+      )}
+
+      {/* Top Insights */}
+      {topInsights.length > 0 && (
+        <View style={styles.insightsSection}>
+          <Text style={styles.insightsTitle}>💡 AI Insights</Text>
+          {topInsights.map((ins, i) => (
+            <View key={i} style={[styles.insightCard, { borderLeftColor: ins.severity === "critical" ? "#ef4444" : ins.severity === "high" ? "#f59e0b" : theme.primary }]}>
+              <Text style={styles.insightTitle}>{ins.title}</Text>
+              <Text style={styles.insightDetail} numberOfLines={2}>{ins.detail}</Text>
+              <Text style={styles.insightAction}>{ins.action}</Text>
+            </View>
+          ))}
         </View>
       )}
 
@@ -217,6 +270,24 @@ const styles = StyleSheet.create({
   healthTips: { marginTop: 10, gap: 6 },
   healthTipRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   healthTipText: { fontSize: 12, color: theme.textSecondary, flex: 1 },
+  // Coach banner
+  coachBanner: { flexDirection: "row", alignItems: "center", gap: 10, marginHorizontal: 16, marginBottom: 12, backgroundColor: theme.card, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: theme.border, borderLeftWidth: 4 },
+  coachTitle: { fontSize: 14, fontWeight: "700", color: theme.text },
+  coachMsg: { fontSize: 12, color: theme.textSecondary, marginTop: 4, lineHeight: 17 },
+  // Profile card
+  profileCard: { marginHorizontal: 16, marginBottom: 12, backgroundColor: theme.card, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: theme.border },
+  profileTitle: { fontSize: 15, fontWeight: "700", color: theme.text, marginBottom: 10 },
+  profileRow: { flexDirection: "row", justifyContent: "space-around" },
+  profileStat: { alignItems: "center" },
+  profileStatVal: { fontSize: 16, fontWeight: "800", color: theme.text },
+  profileStatLabel: { fontSize: 10, color: theme.muted, marginTop: 2, textTransform: "uppercase" },
+  // Insights
+  insightsSection: { marginHorizontal: 16, marginBottom: 12 },
+  insightsTitle: { fontSize: 15, fontWeight: "700", color: theme.text, marginBottom: 8 },
+  insightCard: { backgroundColor: theme.card, borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: theme.border, borderLeftWidth: 4 },
+  insightTitle: { fontSize: 13, fontWeight: "700", color: theme.text },
+  insightDetail: { fontSize: 12, color: theme.textSecondary, marginTop: 4, lineHeight: 17 },
+  insightAction: { fontSize: 12, color: theme.primary, marginTop: 6, fontWeight: "600" },
   // Goals widget
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   seeAllText: { fontSize: 14, color: theme.primary, fontWeight: "600" },

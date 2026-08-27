@@ -389,6 +389,40 @@ export default function ChatScreen({ navigation }) {
         } catch (e) { console.warn(e); }
       }
 
+      // ── Detect [SCENARIO:...] ──
+      const scenarioMatches = [...fullText.matchAll(/\[SCENARIO:(\{[^}]+\})\]/g)];
+      for (const m of scenarioMatches) {
+        try {
+          const { simulateScenario, formatScenarioResult } = require("../services/scenarioSimulator");
+          const result = await simulateScenario(user.user_id, JSON.parse(m[1]));
+          if (result) {
+            const formatted = formatScenarioResult(result);
+            cleanText = cleanText.replace(m[0], formatted);
+            showToast("Scenario simulated");
+          } else { cleanText = cleanText.replace(m[0], ""); }
+        } catch (e) { console.warn(e); }
+      }
+
+      // ── Detect [GOAL_OPT:...] ──
+      const goalOptMatches = [...fullText.matchAll(/\[GOAL_OPT:(\{[^}]+\})\]/g)];
+      for (const m of goalOptMatches) {
+        try {
+          const { optimizeGoals, formatOptimizationForPrompt } = require("../services/goalOptimizer");
+          const result = await optimizeGoals(user.user_id);
+          if (result) {
+            const lines = [
+              `📊 **Goal Optimization Plan**\n`,
+              `Monthly surplus: ₹${result.totalSurplus.toLocaleString("en-IN")}`,
+              `Allocated: ₹${result.totalAllocated.toLocaleString("en-IN")}\n`,
+              ...result.goals.map((g, i) => `${i + 1}. ${g.name}: ₹${g.allocated.toLocaleString("en-IN")}/mo — ${g.status === "fully_funded" ? "✓ Funded" : g.status === "partially_funded" ? "Partial" : "Unfunded"} (${g.pct}%)`),
+              `\n💡 ${result.recommendation}`,
+            ].join("\n");
+            cleanText = cleanText.replace(m[0], lines);
+            showToast("Goal optimization ready");
+          } else { cleanText = cleanText.replace(m[0], ""); }
+        } catch (e) { console.warn(e); }
+      }
+
       // Update the assistant message with cleaned text
       setMessages((m) => m.map((msg) =>
         msg.message_id === assistantId ? { ...msg, content: cleanText } : msg
