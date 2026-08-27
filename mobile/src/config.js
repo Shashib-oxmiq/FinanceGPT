@@ -13,7 +13,7 @@ export const CONFIG = {
   // Yolo-Auto AI
   AI_BASE_URL: 'https://yolo-auto.com/v1',
   AI_MODEL: 'qwen3.8-27b',
-  AI_API_KEY: '', // Set via expo-secure-store at runtime
+  AI_API_KEY: 'yolo_injzGjVLSZDP_ipMNAUKLP38ipEMzpaxe1UCNAJ5Iqc', // Yolo-Auto key
 
   // Market data (Yahoo Finance — no API key needed)
   MARKET_BASE_URL: 'https://query1.finance.yahoo.com/v8/finance',

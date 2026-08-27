@@ -1,5 +1,9 @@
+// ── ChatScreen — Full ChatGPT-style AI Advisor ───────────────────────────────
+// Mirrors desktop Chat.jsx: sidebar (conversations+tools+profile), example prompts,
+// all marker detection (INV_ADD/EDIT/DELETE, DOC_GEN, LANG_CHANGE, INS_ADD, REM_ADD, FORM_REC)
+
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Animated, ScrollView, Alert, Linking } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -7,19 +11,41 @@ import { api } from "../services/api";
 import { streamChat, buildSystemPrompt } from "../services/ai";
 import { setApiKey } from "../services/ai";
 import { SecureStoreShim } from "../services/platform";
+import { generateDocumentText, downloadDocument, getTemplate } from "../services/docGen";
+import { getFormById } from "../services/formsData";
+import LanguageSwitcher from "../components/LanguageSwitcher";
 import { theme } from "../theme";
 
-export default function ChatScreen() {
+const EXAMPLES = [
+  "What insurance do I need for my family?",
+  "Analyze my investment portfolio",
+  "Help me plan for a home loan",
+  "I need to file my taxes — what do I need?",
+  "Make a rental agreement for me",
+  "What should my next-of-kin know?",
+];
+
+const TPL_NAMES = {
+  rental_agreement: "Rental Agreement", nda: "NDA", will: "Will",
+  employment_contract: "Employment Contract", loan_agreement: "Loan Agreement",
+  power_of_attorney: "Power of Attorney", partnership_deed: "Partnership Deed", sale_deed: "Sale Deed",
+};
+
+export default function ChatScreen({ navigation }) {
   const { t, lang, changeLang } = useLanguage();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [conversations, setConversations] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const [toast, setToast] = useState(null);
   const flatRef = useRef(null);
 
+  // ── Load AI key ──
   useEffect(() => {
     (async () => {
       const key = await SecureStoreShim.getItemAsync("ai_api_key");
@@ -27,13 +53,17 @@ export default function ChatScreen() {
     })();
   }, []);
 
+  // ── Load conversations ──
   const loadConvos = useCallback(async () => {
     if (!user) return;
     try {
       const convs = await api.getConversations(user.user_id);
       setConversations(convs);
       if (convs.length > 0 && !activeId) {
-        setActiveId(convs[0].conversation_id);
+        const cid = convs[0].conversation_id;
+        setActiveId(cid);
+        const msgs = await api.getMessages(cid, user.user_id);
+        setMessages(msgs);
       }
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
@@ -41,40 +71,64 @@ export default function ChatScreen() {
 
   useEffect(() => { loadConvos(); }, [loadConvos]);
 
-  const loadMessages = useCallback(async () => {
-    if (!activeId || !user) return;
-    const msgs = await api.getMessages(activeId, user.user_id);
+  // ── Select conversation ──
+  const selectConvo = async (id) => {
+    setActiveId(id);
+    setSidebarOpen(false);
+    const msgs = await api.getMessages(id, user.user_id);
     setMessages(msgs);
-  }, [activeId, user]);
+  };
 
-  useEffect(() => { loadMessages(); }, [loadMessages]);
-
-  const newConversation = async () => {
+  // ── New conversation ──
+  const newConvo = async () => {
     if (!user) return;
     const conv = await api.createConversation(user.user_id);
     setConversations([conv, ...conversations]);
     setActiveId(conv.conversation_id);
     setMessages([]);
+    setSidebarOpen(false);
   };
 
-  const send = async () => {
-    if (!input.trim() || streaming || !activeId || !user) return;
-    const text = input.trim();
+  // ── Delete conversation ──
+  const deleteConvo = async (id) => {
+    await api.deleteConversation(id, user.user_id);
+    setConversations((c) => c.filter((x) => x.conversation_id !== id));
+    if (activeId === id) { setActiveId(null); setMessages([]); }
+  };
+
+  // ── Show toast ──
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  // ── Send message ──
+  const send = async (overrideText) => {
+    const text = (overrideText || input).trim();
+    if (!text || streaming || !user) return;
     setInput("");
-    setStreaming(true);
+
+    let convId = activeId;
+    if (!convId) {
+      const conv = await api.createConversation(user.user_id, text.slice(0, 40));
+      setConversations([conv, ...conversations]);
+      convId = conv.conversation_id;
+      setActiveId(convId);
+    }
 
     // Add user message
     const userMsg = { role: "user", content: text, message_id: Date.now() + "u" };
     setMessages((m) => [...m, userMsg]);
-    await api.saveMessage(activeId, user.user_id, "user", text);
+    await api.saveMessage(convId, user.user_id, "user", text);
 
     // Build system prompt
     const history = messages.map((m) => ({ role: m.role, content: m.content }));
-    const system = buildSystemPrompt(user, history, "", lang);
+    const system = await buildSystemPrompt(user, history, lang);
 
     // Add assistant placeholder
     const assistantId = Date.now() + "a";
     setMessages((m) => [...m, { role: "assistant", content: "", message_id: assistantId }]);
+    setStreaming(true);
 
     try {
       const fullText = await streamChat(system, text, "qwen3.8-27b", (delta) => {
@@ -84,35 +138,101 @@ export default function ChatScreen() {
       });
 
       // Save assistant message
-      await api.saveMessage(activeId, user.user_id, "assistant", fullText, { model: "qwen3.8-27b" });
+      await api.saveMessage(convId, user.user_id, "assistant", fullText, { model: "qwen3.8-27b" });
 
-      // Detect [LANG_CHANGE:xx]
+      let cleanText = fullText;
+
+      // ── Detect [LANG_CHANGE:xx] ──
       const langMatch = fullText.match(/\[LANG_CHANGE:([a-z]{2})\]/i);
       if (langMatch) {
-        const newLang = langMatch[1].toLowerCase();
-        changeLang(newLang);
+        changeLang(langMatch[1].toLowerCase());
+        cleanText = cleanText.replace(/\[LANG_CHANGE:[a-z]{2}\]/gi, "").trim();
+        showToast("App language changed");
       }
 
-      // Detect investment actions
+      // ── Detect [INV_ADD:...] ──
       const invAddMatches = [...fullText.matchAll(/\[INV_ADD:(\{[^}]+\})\]/g)];
-      const invEditMatches = [...fullText.matchAll(/\[INV_EDIT:(\{[^}]+\})\]/g)];
-      const invDeleteMatches = [...fullText.matchAll(/\[INV_DELETE:([^\]]+)\]/g)];
-
       for (const m of invAddMatches) {
-        try { await api.investmentChatAction(user.user_id, "add", { data: JSON.parse(m[1]) }); } catch (e) { console.warn(e); }
-      }
-      for (const m of invEditMatches) {
-        try { const p = JSON.parse(m[1]); await api.investmentChatAction(user.user_id, "edit", { name: p.name, updates: p.updates || p }); } catch (e) { console.warn(e); }
-      }
-      for (const m of invDeleteMatches) {
-        try { await api.investmentChatAction(user.user_id, "delete", { name: m[1].trim() }); } catch (e) { console.warn(e); }
+        try { await api.investmentChatAction(user.user_id, "add", { data: JSON.parse(m[1]) }); cleanText = cleanText.replace(m[0], ""); showToast("Investment added"); }
+        catch (e) { console.warn(e); }
       }
 
-      // Strip markers from displayed message
-      if (invAddMatches.length + invEditMatches.length + invDeleteMatches.length > 0 || langMatch) {
-        const clean = fullText.replace(/\[LANG_CHANGE:[a-z]{2}\]/gi, "").replace(/\[INV_[A-Z]+:[^\]]*\]/g, "").trim();
-        setMessages((m) => m.map((msg) => msg.message_id === assistantId ? { ...msg, content: clean } : msg));
+      // ── Detect [INV_EDIT:...] ──
+      const invEditMatches = [...fullText.matchAll(/\[INV_EDIT:(\{[^}]+\})\]/g)];
+      for (const m of invEditMatches) {
+        try { const p = JSON.parse(m[1]); await api.investmentChatAction(user.user_id, "edit", { name: p.name, updates: p.updates || p }); cleanText = cleanText.replace(m[0], ""); showToast("Investment updated"); }
+        catch (e) { console.warn(e); }
       }
+
+      // ── Detect [INV_DELETE:...] ──
+      const invDeleteMatches = [...fullText.matchAll(/\[INV_DELETE:([^\]]+)\]/g)];
+      for (const m of invDeleteMatches) {
+        try { await api.investmentChatAction(user.user_id, "delete", { name: m[1].trim() }); cleanText = cleanText.replace(m[0], ""); showToast("Investment deleted"); }
+        catch (e) { console.warn(e); }
+      }
+
+      // ── Detect [DOC_GEN:...] ──
+      const docGenMatches = [...fullText.matchAll(/\[DOC_GEN:(\{[^}]*(?:\{[^}]*\}[^}]*)*\})\]/g)];
+      for (const m of docGenMatches) {
+        try {
+          const parsed = JSON.parse(m[1]);
+          const tplId = parsed.template_id;
+          const tplData = parsed.data || {};
+          const fmt = parsed.format || "txt";
+          // Generate document text
+          const docText = generateDocumentText(tplId, tplData);
+          cleanText = cleanText.replace(m[0], "");
+          // Add as a special "document" message after the AI message
+          const tplName = TPL_NAMES[tplId] || tplId;
+          setMessages((m) => [...m, {
+            role: "assistant",
+            content: docText,
+            message_id: Date.now() + "doc",
+            isDocument: true,
+            docTitle: tplName,
+            docFormat: fmt,
+          }]);
+          showToast(tplName + " generated");
+        } catch (e) { console.warn("DOC_GEN failed:", e); }
+      }
+
+      // ── Detect [FORM_REC:form_id] ──
+      const formRecMatches = [...fullText.matchAll(/\[FORM_REC:(\d+)\]/g)];
+      for (const m of formRecMatches) {
+        try {
+          const form = getFormById(m[1]);
+          if (form) {
+            // Check which docs the user already has in vault
+            const docs = await api.getDocuments(user.user_id);
+            const userCategories = new Set(docs.map((d) => d.category.toLowerCase()));
+            const requiredDocs = form.documents.split(",").map((d) => d.trim());
+            const have = requiredDocs.filter((d) => userCategories.has(d.toLowerCase().split(" ")[0]));
+            const missing = requiredDocs.filter((d) => !userCategories.has(d.toLowerCase().split(" ")[0]));
+            const formInfo = `\n\n📋 **${form.name}**\nAuthority: ${form.authority}\nFees: ${form.fees}\nProcessing: ${form.processing_time}\n\n✅ You already have: ${have.length > 0 ? have.join(", ") : "none"}\n❌ Still needed: ${missing.length > 0 ? missing.join(", ") : "all documents"}\n${form.online_url ? `\n🌐 Apply online: ${form.online_url}` : ""}`;
+            cleanText += formInfo;
+          }
+          cleanText = cleanText.replace(m[0], "");
+        } catch (e) { console.warn(e); }
+      }
+
+      // ── Detect [INS_ADD:...] ──
+      const insAddMatches = [...fullText.matchAll(/\[INS_ADD:(\{[^}]+\})\]/g)];
+      for (const m of insAddMatches) {
+        try { await api.addInsurance(user.user_id, JSON.parse(m[1])); cleanText = cleanText.replace(m[0], ""); showToast("Insurance policy added"); }
+        catch (e) { console.warn(e); }
+      }
+
+      // ── Detect [REM_ADD:...] ──
+      const remAddMatches = [...fullText.matchAll(/\[REM_ADD:(\{[^}]+\})\]/g)];
+      for (const m of remAddMatches) {
+        try { await api.addReminder(user.user_id, JSON.parse(m[1])); cleanText = cleanText.replace(m[0], ""); showToast("Reminder created"); }
+        catch (e) { console.warn(e); }
+      }
+
+      // Update the assistant message with cleaned text
+      setMessages((m) => m.map((msg) =>
+        msg.message_id === assistantId ? { ...msg, content: cleanText } : msg
+      ));
 
       loadConvos();
     } catch (e) {
@@ -124,73 +244,260 @@ export default function ChatScreen() {
     }
   };
 
-  const renderMessage = ({ item }) => (
-    <View style={[styles.msg, item.role === "user" ? styles.msgUser : styles.msgAssistant]}>
-      <Text style={item.role === "user" ? styles.msgUserText : styles.msgAssistantText}>{item.content}</Text>
-    </View>
-  );
+  // ── Render message ──
+  const renderMessage = ({ item }) => {
+    if (item.isDocument) {
+      return (
+        <View style={[styles.msg, styles.msgDoc]}>
+          <View style={styles.docHeader}>
+            <Ionicons name="document-text" size={18} color={theme.accent} />
+            <Text style={styles.docTitle}>{item.docTitle}</Text>
+          </View>
+          <Text style={styles.docContent}>{item.content}</Text>
+          <TouchableOpacity style={styles.docDownloadBtn} onPress={() => downloadDocument(null, {}, "txt")}>
+            <Ionicons name="download" size={14} color="#fff" />
+            <Text style={styles.docDownloadText}>Save</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return (
+      <View style={[styles.msg, item.role === "user" ? styles.msgUser : styles.msgAssistant]}>
+        {item.role === "assistant" && (
+          <View style={styles.msgAvatar}><Ionicons name="chatbubble-ellipses" size={14} color={theme.primary} /></View>
+        )}
+        <Text style={item.role === "user" ? styles.msgUserText : styles.msgAssistantText}>{item.content}</Text>
+      </View>
+    );
+  };
 
   if (loading) return <View style={styles.center}><ActivityIndicator size="large" color={theme.primary} /></View>;
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.container} keyboardVerticalOffset={90}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>{t("chat.title")}</Text>
-        <TouchableOpacity onPress={newConversation} style={styles.newBtn}>
-          <Ionicons name="add-circle-outline" size={22} color={theme.primary} />
-          <Text style={styles.newBtnText}>{t("chat.new_conversation")}</Text>
-        </TouchableOpacity>
-      </View>
+    <View style={styles.container}>
+      {/* ── Sidebar (drawer) ── */}
+      {sidebarOpen && (
+        <View style={styles.sidebarOverlay}>
+          <View style={styles.sidebar}>
+            {/* Brand + New Chat */}
+            <View style={styles.sidebarHeader}>
+              <View style={styles.brandRow}>
+                <Ionicons name="chatbubble-ellipses" size={22} color={theme.primary} />
+                <Text style={styles.brandText}>EVERKIN</Text>
+                <Text style={styles.brandSub}>{t("chat.title")}</Text>
+              </View>
+              <TouchableOpacity style={styles.newChatBtn} onPress={newConvo}>
+                <Ionicons name="add" size={16} color={theme.text} />
+                <Text style={styles.newChatText}>{t("chat.new_conversation")}</Text>
+              </TouchableOpacity>
+            </View>
 
-      {messages.length === 0 ? (
-        <View style={styles.empty}>
-          <Ionicons name="chatbubbles" size={48} color={theme.muted} />
-          <Text style={styles.emptyText}>{t("chat.how_can_help")}</Text>
+            {/* Conversations list */}
+            <ScrollView style={styles.convoList} contentContainerStyle={{ paddingBottom: 8 }}>
+              {conversations.length === 0 && <Text style={styles.emptyConvo}>No conversations yet.</Text>}
+              {conversations.map((c) => (
+                <TouchableOpacity
+                  key={c.conversation_id}
+                  style={[styles.convoItem, activeId === c.conversation_id && styles.convoItemActive]}
+                  onPress={() => selectConvo(c.conversation_id)}
+                >
+                  <Text style={styles.convoTitle} numberOfLines={1}>{c.title}</Text>
+                  <TouchableOpacity onPress={() => deleteConvo(c.conversation_id)}>
+                    <Ionicons name="trash-outline" size={14} color={theme.muted} />
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            {/* Tools section */}
+            <View style={styles.toolsSection}>
+              <TouchableOpacity style={styles.toolsHeader} onPress={() => setToolsOpen(!toolsOpen)}>
+                <Ionicons name="grid-outline" size={16} color={theme.muted} />
+                <Text style={styles.toolsHeaderText}>{t("chat.tools") || "Tools"}</Text>
+                <Ionicons name={toolsOpen ? "chevron-up" : "chevron-down"} size={14} color={theme.muted} />
+              </TouchableOpacity>
+              {toolsOpen && (
+                <ScrollView style={{ maxHeight: 200 }}>
+                  {[
+                    { label: t("nav.dashboard"), screen: "Home", icon: "grid" },
+                    { label: t("nav.investments"), screen: "Money", icon: "trending-up" },
+                    { label: t("nav.insurance"), screen: "Insurance", icon: "shield-checkmark" },
+                    { label: t("nav.loan_prep"), screen: "Forms", icon: "document-text" },
+                    { label: t("nav.vault"), screen: "Vault", icon: "folder" },
+                    { label: t("nav.reminders"), screen: "Reminders", icon: "notifications" },
+                    { label: t("nav.profile"), screen: "Profile", icon: "person" },
+                    { label: t("nav.insights"), screen: "Insights", icon: "stats-chart" },
+                    { label: t("nav.legacy"), screen: "Legacy", icon: "heart" },
+                    { label: t("nav.gmail"), screen: "Gmail", icon: "mail" },
+                    { label: t("nav.bundler"), screen: "Bundler", icon: "cube" },
+                    { label: t("nav.form_filler"), screen: "FormFiller", icon: "create" },
+                  ].map((item) => (
+                    <TouchableOpacity
+                      key={item.screen}
+                      style={styles.toolItem}
+                      onPress={() => { setSidebarOpen(false); navigation.navigate(item.screen); }}
+                    >
+                      <Ionicons name={item.icon} size={16} color={theme.muted} />
+                      <Text style={styles.toolLabel}>{item.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              )}
+            </View>
+
+            {/* Language switcher + profile */}
+            <View style={styles.sidebarFooter}>
+              <View style={{ marginBottom: 8 }}><LanguageSwitcher /></View>
+              <View style={styles.profileRow}>
+                <View style={styles.profileAvatar}>
+                  <Text style={styles.profileAvatarText}>{(user?.name || "U").slice(0, 1).toUpperCase()}</Text>
+                </View>
+                <View style={styles.profileInfo}>
+                  <Text style={styles.profileName} numberOfLines={1}>{user?.name || "User"}</Text>
+                  <Text style={styles.profileEmail} numberOfLines={1}>{user?.email}</Text>
+                </View>
+                <TouchableOpacity onPress={logout} style={styles.logoutBtn}>
+                  <Ionicons name="log-out-outline" size={16} color={theme.destructive} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+          <TouchableOpacity style={styles.sidebarBackdrop} onPress={() => setSidebarOpen(false)} />
         </View>
-      ) : (
-        <FlatList
-          ref={flatRef}
-          data={messages}
-          keyExtractor={(x) => x.message_id}
-          renderItem={renderMessage}
-          contentContainerStyle={{ padding: 16, paddingBottom: 80 }}
-          onContentSizeChange={() => flatRef.current?.scrollToEnd({ animated: true })}
-        />
       )}
 
-      <View style={styles.inputBar}>
-        <TextInput
-          style={styles.input}
-          placeholder={t("chat.placeholder")}
-          placeholderTextColor={theme.muted}
-          value={input}
-          onChangeText={setInput}
-          multiline
-          maxLength={4000}
-          editable={!streaming}
-        />
-        <TouchableOpacity style={styles.sendBtn} onPress={send} disabled={streaming || !input.trim()}>
-          {streaming ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="send" size={18} color="#fff" />}
-        </TouchableOpacity>
+      {/* ── Main chat area ── */}
+      <View style={styles.main}>
+        {/* Header bar */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => setSidebarOpen(true)} style={styles.menuBtn}>
+            <Ionicons name="menu" size={22} color={theme.text} />
+          </TouchableOpacity>
+          <View style={styles.headerTitle}>
+            <Text style={styles.headerTitleText}>AI Advisor</Text>
+            <Text style={styles.headerSub}>Financial · Insurance · Legacy</Text>
+          </View>
+        </View>
+
+        {/* Messages */}
+        {messages.length === 0 ? (
+          <View style={styles.emptyState}>
+            <View style={styles.emptyIcon}><Ionicons name="chatbubble-ellipses" size={32} color={theme.primary} /></View>
+            <Text style={styles.emptyTitle}>{t("chat.how_can_help")}</Text>
+            <Text style={styles.emptyDesc}>Ask a financial question, request a form, or tell me about your goals.</Text>
+            <View style={styles.examplesGrid}>
+              {EXAMPLES.map((s) => (
+                <TouchableOpacity key={s} style={styles.exampleCard} onPress={() => send(s)}>
+                  <Text style={styles.exampleText}>{s}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        ) : (
+          <FlatList
+            ref={flatRef}
+            data={messages}
+            keyExtractor={(x) => x.message_id}
+            renderItem={renderMessage}
+            contentContainerStyle={{ padding: 16, paddingBottom: 80 }}
+            onContentSizeChange={() => flatRef.current?.scrollToEnd({ animated: true })}
+          />
+        )}
+
+        {/* Toast */}
+        {toast && (
+          <View style={styles.toast}>
+            <Ionicons name="checkmark-circle" size={16} color={theme.accent} />
+            <Text style={styles.toastText}>{toast}</Text>
+          </View>
+        )}
+
+        {/* Input bar */}
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={0}>
+          <View style={styles.inputBar}>
+            <TextInput
+              style={styles.input}
+              placeholder={t("chat.placeholder")}
+              placeholderTextColor={theme.muted}
+              value={input}
+              onChangeText={setInput}
+              multiline
+              maxLength={4000}
+              editable={!streaming}
+            />
+            <TouchableOpacity style={styles.sendBtn} onPress={() => send()} disabled={streaming || !input.trim()}>
+              {streaming ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="send" size={18} color="#fff" />}
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.background },
   center: { flex: 1, backgroundColor: theme.background, justifyContent: "center", alignItems: "center" },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingTop: 60, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: theme.border },
-  headerTitle: { fontSize: 20, fontWeight: "800", color: theme.text },
-  newBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
-  newBtnText: { fontSize: 13, color: theme.primary, fontWeight: "600" },
-  empty: { flex: 1, justifyContent: "center", alignItems: "center" },
-  emptyText: { color: theme.muted, fontSize: 16, marginTop: 16, textAlign: "center" },
-  msg: { maxWidth: "85%", borderRadius: 16, padding: 12, marginBottom: 8 },
+  // ── Sidebar ──
+  sidebarOverlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, flexDirection: "row", zIndex: 100 },
+  sidebar: { width: 280, backgroundColor: theme.card, borderRightWidth: 1, borderRightColor: theme.border },
+  sidebarBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)" },
+  sidebarHeader: { padding: 16, borderBottomWidth: 1, borderBottomColor: theme.border },
+  brandRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
+  brandText: { fontSize: 16, fontWeight: "900", color: theme.text, letterSpacing: -0.5 },
+  brandSub: { fontSize: 9, color: theme.muted, letterSpacing: 2, textTransform: "uppercase", marginLeft: "auto" },
+  newChatBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 10, borderRadius: 16, backgroundColor: theme.input, borderWidth: 1, borderColor: theme.border },
+  newChatText: { fontSize: 13, color: theme.text, fontWeight: "600" },
+  convoList: { flex: 1, padding: 8 },
+  emptyConvo: { fontSize: 12, color: theme.muted, paddingHorizontal: 12, paddingVertical: 8 },
+  convoItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, marginVertical: 2 },
+  convoItemActive: { backgroundColor: theme.input },
+  convoTitle: { flex: 1, fontSize: 13, color: theme.textSecondary, marginRight: 8 },
+  toolsSection: { borderTopWidth: 1, borderTopColor: theme.border, padding: 8 },
+  toolsHeader: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 8, paddingVertical: 8 },
+  toolsHeaderText: { flex: 1, fontSize: 13, color: theme.muted, fontWeight: "600" },
+  toolItem: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 12 },
+  toolLabel: { fontSize: 13, color: theme.textSecondary },
+  sidebarFooter: { borderTopWidth: 1, borderTopColor: theme.border, padding: 12 },
+  profileRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  profileAvatar: { width: 32, height: 32, borderRadius: 10, backgroundColor: theme.primary + "20", justifyContent: "center", alignItems: "center" },
+  profileAvatarText: { fontSize: 13, fontWeight: "700", color: theme.primary },
+  profileInfo: { flex: 1 },
+  profileName: { fontSize: 12, fontWeight: "600", color: theme.text },
+  profileEmail: { fontSize: 10, color: theme.muted },
+  logoutBtn: { padding: 6 },
+  // ── Main ──
+  main: { flex: 1 },
+  header: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingTop: 50, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: theme.border },
+  menuBtn: { padding: 4 },
+  headerTitle: { flex: 1 },
+  headerTitleText: { fontSize: 15, fontWeight: "700", color: theme.text },
+  headerSub: { fontSize: 10, color: theme.muted },
+  // ── Empty state ──
+  emptyState: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
+  emptyIcon: { width: 64, height: 64, borderRadius: 20, backgroundColor: theme.primary + "15", justifyContent: "center", alignItems: "center", marginBottom: 16 },
+  emptyTitle: { fontSize: 20, fontWeight: "700", color: theme.text, marginBottom: 8 },
+  emptyDesc: { fontSize: 14, color: theme.muted, textAlign: "center", marginBottom: 24, maxWidth: 280 },
+  examplesGrid: { width: "100%", gap: 10 },
+  exampleCard: { backgroundColor: theme.card, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: theme.border },
+  exampleText: { fontSize: 13, color: theme.textSecondary },
+  // ── Messages ──
+  msg: { maxWidth: "85%", borderRadius: 16, padding: 12, marginBottom: 10 },
   msgUser: { alignSelf: "flex-end", backgroundColor: theme.primary },
-  msgUserText: { color: "#fff", fontSize: 15, lineHeight: 22 },
-  msgAssistant: { alignSelf: "flex-start", backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border },
-  msgAssistantText: { color: theme.text, fontSize: 15, lineHeight: 22 },
+  msgUserText: { color: "#fff", fontSize: 14, lineHeight: 20 },
+  msgAssistant: { alignSelf: "flex-start", backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border, flexDirection: "row", gap: 8 },
+  msgAvatar: { width: 24, height: 24, borderRadius: 8, backgroundColor: theme.primary + "15", justifyContent: "center", alignItems: "center", alignSelf: "flex-start" },
+  msgAssistantText: { flex: 1, color: theme.text, fontSize: 14, lineHeight: 20 },
+  msgDoc: { alignSelf: "flex-start", backgroundColor: theme.accent + "10", borderWidth: 1, borderColor: theme.accent + "40", width: "90%" },
+  docHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
+  docTitle: { fontSize: 14, fontWeight: "700", color: theme.accent },
+  docContent: { fontSize: 12, color: theme.textSecondary, lineHeight: 18, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
+  docDownloadBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: theme.accent },
+  docDownloadText: { color: "#fff", fontSize: 12, fontWeight: "600" },
+  // ── Toast ──
+  toast: { position: "absolute", top: 60, left: 0, right: 0, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 8, marginHorizontal: 40, backgroundColor: theme.card, borderRadius: 12, borderWidth: 1, borderColor: theme.border, elevation: 4, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
+  toastText: { fontSize: 13, color: theme.accent, fontWeight: "500" },
+  // ── Input ──
   inputBar: { flexDirection: "row", alignItems: "flex-end", paddingHorizontal: 12, paddingVertical: 8, gap: 8, borderTopWidth: 1, borderTopColor: theme.border, backgroundColor: theme.card },
   input: { flex: 1, backgroundColor: theme.input, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, fontSize: 15, color: theme.text, maxHeight: 100, borderWidth: 1, borderColor: theme.border },
   sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: theme.primary, justifyContent: "center", alignItems: "center" },
