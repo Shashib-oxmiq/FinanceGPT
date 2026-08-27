@@ -254,6 +254,116 @@ export async function initDB() {
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     );
+
+    -- Loans & EMIs (F-208)
+    CREATE TABLE IF NOT EXISTS loans (
+      loan_id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      loan_type TEXT NOT NULL,
+      lender TEXT,
+      principal REAL NOT NULL,
+      interest_rate REAL,
+      tenure_months INTEGER,
+      emi_amount REAL,
+      remaining_amount REAL,
+      start_date TEXT,
+      end_date TEXT,
+      next_emi_date TEXT,
+      status TEXT DEFAULT 'active',
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- Bills & Utilities (F-209)
+    CREATE TABLE IF NOT EXISTS bills (
+      bill_id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      bill_type TEXT NOT NULL,
+      provider TEXT,
+      amount REAL NOT NULL,
+      due_date TEXT,
+      paid INTEGER DEFAULT 0,
+      paid_date TEXT,
+      recurring INTEGER DEFAULT 1,
+      recurrence TEXT DEFAULT 'monthly',
+      account_number TEXT,
+      notes TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- Education plans (F-210)
+    CREATE TABLE IF NOT EXISTS education_plans (
+      plan_id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      child_name TEXT,
+      child_age INTEGER,
+      current_class TEXT,
+      target_education TEXT,
+      target_year TEXT,
+      estimated_cost REAL,
+      current_savings REAL DEFAULT 0,
+      monthly_contribution REAL DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- Retirement corpus (F-211)
+    CREATE TABLE IF NOT EXISTS retirement_corpus (
+      corpus_id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      source TEXT NOT NULL,
+      current_value REAL DEFAULT 0,
+      monthly_contribution REAL DEFAULT 0,
+      employer_contribution REAL DEFAULT 0,
+      expected_return REAL DEFAULT 8,
+      vesting_age INTEGER,
+      notes TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- Tax records (F-212)
+    CREATE TABLE IF NOT EXISTS tax_records (
+      tax_id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      financial_year TEXT NOT NULL,
+      gross_income REAL,
+      total_deductions REAL DEFAULT 0,
+      tax_paid REAL DEFAULT 0,
+      regime TEXT DEFAULT 'new',
+      itr_form TEXT,
+      itr_status TEXT DEFAULT 'not_filed',
+      filing_date TEXT,
+      refund_amount REAL DEFAULT 0,
+      notes TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- Properties (F-213)
+    CREATE TABLE IF NOT EXISTS properties (
+      property_id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      property_type TEXT NOT NULL,
+      address TEXT,
+      city TEXT,
+      state TEXT,
+      purchase_price REAL,
+      current_value REAL,
+      purchase_date TEXT,
+      area_sqft REAL,
+      ownership TEXT DEFAULT 'sole',
+      property_tax_due TEXT,
+      property_tax_amount REAL DEFAULT 0,
+      mutation_status TEXT DEFAULT 'pending',
+      notes TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- Health score history (F-217)
+    CREATE TABLE IF NOT EXISTS health_score_history (
+      snapshot_id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      score INTEGER NOT NULL,
+      breakdown TEXT DEFAULT '{}',
+      recorded_at TEXT DEFAULT (datetime('now'))
+    );
   `);
 
   return db;

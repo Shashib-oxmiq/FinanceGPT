@@ -45,6 +45,12 @@ import SchemesScreen from "./src/screens/SchemesScreen";
 import InsuranceGapScreen from "./src/screens/InsuranceGapScreen";
 import MedicalRecordsScreen from "./src/screens/MedicalRecordsScreen";
 import LegalRightsScreen from "./src/screens/LegalRightsScreen";
+import LoansScreen from "./src/screens/LoansScreen";
+import BillsScreen from "./src/screens/BillsScreen";
+import EducationScreen from "./src/screens/EducationScreen";
+import RetirementScreen from "./src/screens/RetirementScreen";
+import TaxScreen from "./src/screens/TaxScreen";
+import PropertyScreen from "./src/screens/PropertyScreen";
 import SharedViewScreen from "./src/screens/SharedViewScreen";
 
 const Stack = createNativeStackNavigator();
@@ -132,6 +138,12 @@ function AppContent() {
             <Stack.Screen name="InsuranceGap" component={InsuranceGapScreen} />
             <Stack.Screen name="MedicalRecords" component={MedicalRecordsScreen} />
             <Stack.Screen name="LegalRights" component={LegalRightsScreen} />
+            <Stack.Screen name="Loans" component={LoansScreen} />
+            <Stack.Screen name="Bills" component={BillsScreen} />
+            <Stack.Screen name="Education" component={EducationScreen} />
+            <Stack.Screen name="Retirement" component={RetirementScreen} />
+            <Stack.Screen name="Tax" component={TaxScreen} />
+            <Stack.Screen name="Property" component={PropertyScreen} />
             <Stack.Screen name="SharedView" component={SharedViewScreen} />
           </>
         )}

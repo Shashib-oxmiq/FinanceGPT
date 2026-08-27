@@ -9,7 +9,7 @@
 > **Platforms**: `desktop` = Electron/web app · `mobile` = React Native iOS app
 >
 > Last updated: 2026-08-27
-> Total features registered: 207
+> Total features registered: 219
 
 ---
 
@@ -361,16 +361,35 @@
 
 ---
 
+## F-LIFE3 · Life Dimension Expansion (Round 3)
+
+| ID | Feature | Desktop | Mobile | Status | Notes |
+|----|---------|---------|--------|--------|-------|
+| F-208 | Credit & Loan Manager | missing | active | active | EMI tracker, debt-to-income ratio, refinance alerts, payoff timeline |
+| F-209 | Bill & Utility Tracker | missing | active | active | Electricity, water, gas, phone, internet, rent — overdue alerts |
+| F-210 | Children's Education Planner | missing | active | active | Cost calculator (10% inflation), admission checklists, scholarships, education loans |
+| F-211 | Retirement Planning | missing | active | active | NPS/EPF/PPF tracker, corpus calculator (25x rule), projection, shortfall |
+| F-212 | Tax Filing & ITR Prep | missing | active | active | Tax calculator (old vs new), regime comparison, ITR form selector, filing links |
+| F-213 | Property & Asset Registry | missing | active | active | Property CRUD, valuation tracking, property tax, mutation status, tax links |
+| F-214 | Premium Payment Calendar | missing | active | active | All insurance premiums in unified timeline, monthly grouping |
+| F-215 | Tax Saving Suggestions | missing | active | active | 80C/80D/80CCD analyzer, save ₹X by investing ₹Y, ELSS/PPF/NPS |
+| F-216 | Bilingual Document Generation | missing | active | active | Hindi+English legal documents, regional language templates |
+| F-217 | Health Score Trend Over Time | missing | active | active | Weekly snapshots, trend direction (improving/declining/stable) |
+| F-218 | OCR Text Search in Vault | missing | active | active | Search inside documents, filename/category/metadata/content matching |
+| F-219 | Portfolio Rebalancing Suggestions | missing | active | active | Asset allocation analysis, risk profile, overweight/underweight alerts |
+
+---
+
 ## Summary Statistics
 
 | Metric | Count |
 |--------|-------|
-| Total features registered | 207 |
+| Total features registered | 219 |
 | Active on both platforms | 115 |
 | Desktop-only (active) | 38 |
-| Mobile-only (active) | 39 |
+| Mobile-only (active) | 51 |
 | Missing on mobile | 25 |
-| Missing on desktop | 27 |
+| Missing on desktop | 39 |
 | Partial | 5 |
 | Deprecated | 7 |
 
@@ -434,6 +453,7 @@
 | 2026-08-27 | F-159: Profile completeness score (progress bar + guidance) | LivAgent |
 | 2026-08-27 | F-191 to F-200: 10 next-generation features added (Health Score, Daily Briefing, Voice Input, Goal Planning, Emergency Access, Proactive Notifications, Receipt Scanner, Family Vault, WhatsApp framework, Offline AI framework) | LivAgent |
 | 2026-08-27 | F-201 to F-207: 7 life-dimension expansion features (Govt Schemes, Insurance Gap Analysis, Document Expiry, Medical Records, Legal Rights, AI Memory, Smart Reminders) | LivAgent |
+| 2026-08-27 | F-208 to F-219: 12 more life-dimension features (Credit/Loans, Bills, Education, Retirement, Tax Filing, Property, Premium Calendar, Tax Saving, Bilingual Docs, Health Score Trend, OCR Search, Portfolio Rebalancing) | LivAgent |
 
 ---
 

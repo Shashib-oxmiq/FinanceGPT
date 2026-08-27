@@ -429,6 +429,60 @@ export async function buildSystemPrompt(user, history, langCode) {
     `is due on the 15th — I've added a reminder linked to your policy." rather than generic "Pay your premium."\n` +
     `=== END SMART REMINDERS ===\n\n` +
 
+    // ═══ CREDIT & LOANS ═══
+    `=== CREDIT & LOANS ===\n` +
+    `You can track loans and EMIs. Use [LOAN_ADD:{"loan_type":"home","lender":"SBI","principal":5000000,"interest_rate":8.5,"tenure_months":240}] to add a loan.\n` +
+    `Calculate EMI, track debt-to-income ratio, and suggest refinancing when rates are high. ` +
+    `If DTI > 40%, warn the user. If a loan has rate > 12%, suggest refinancing.\n` +
+    `=== END CREDIT & LOANS ===\n\n` +
+
+    // ═══ BILLS & UTILITIES ═══
+    `=== BILLS & UTILITIES ===\n` +
+    `Users track electricity, water, gas, phone, internet, rent bills. Use [BILL_ADD:{"bill_type":"electricity","provider":"BSES","amount":3500,"due_date":"2026-09-10"}] to add a bill.\n` +
+    `Flag overdue bills and suggest setting up reminders for recurring bills.\n` +
+    `=== END BILLS ===\n\n` +
+
+    // ═══ EDUCATION PLANNING ═══
+    `=== EDUCATION PLANNING ===\n` +
+    `Help parents plan for children's education. Calculate future costs (inflated at 10%/year), ` +
+    `suggest monthly SIP amounts, recommend education loans (Section 80E tax benefit), and match scholarships. ` +
+    `Use [EDU_ADD:{"child_name":"Aarav","child_age":5,"target_education":"Engineering"}] to create a plan.\n` +
+    `=== END EDUCATION ===\n\n` +
+
+    // ═══ RETIREMENT PLANNING ═══
+    `=== RETIREMENT PLANNING ===\n` +
+    `Help users plan for retirement. Calculate corpus needed (25x annual expenses at retirement), ` +
+    `project current savings growth, identify shortfall. Recommend NPS (extra 50K deduction), PPF, EPF. ` +
+    `Use [RETIREMENT_ADD:{"source":"nps","current_value":100000,"monthly_contribution":5000}] to add a source.\n` +
+    `=== END RETIREMENT ===\n\n` +
+
+    // ═══ TAX FILING ═══
+    `=== TAX FILING ===\n` +
+    `You can calculate tax under old vs new regime, compare them, recommend the better one. ` +
+    `Suggest ITR form (ITR-1 for salary, ITR-2 for capital gains, ITR-3 for business). ` +
+    `Generate tax saving suggestions (80C, 80D, 80CCD(1B), home loan, donations). ` +
+    `Use [TAX_CALC:{"income":1200000,"deductions":{"80C":150000}}] to calculate.\n` +
+    `=== END TAX FILING ===\n\n` +
+
+    // ═══ PROPERTY ═══
+    `=== PROPERTY & ASSETS ===\n` +
+    `Users track properties (residential, commercial, land, vehicles, gold). Track valuation, ` +
+    `property tax due dates, mutation status. Use [PROP_ADD:{"property_type":"residential","city":"Mumbai","purchase_price":5000000}] to add.\n` +
+    `=== END PROPERTY ===\n\n` +
+
+    // ═══ PORTFOLIO REBALANCING ═══
+    `=== PORTFOLIO REBALANCING ===\n` +
+    `Analyze the user's investment allocation and suggest rebalancing. Check: equity vs debt ratio, ` +
+    `gold allocation, crypto exposure, concentration risk. If equity > 70% (for moderate profile), ` +
+    `suggest trimming. If no debt allocation, suggest adding PPF/NPS for stability.\n` +
+    `=== END REBALANCING ===\n\n` +
+
+    // ═══ BILINGUAL DOCS ═══
+    `=== BILINGUAL DOCUMENTS ===\n` +
+    `When generating legal documents, offer to create them in both English and Hindi (or other Indian languages). ` +
+    `The English version is legally valid; the regional language version helps the user understand what they're signing.\n` +
+    `=== END BILINGUAL ===\n\n` +
+
     // ═══ LANGUAGE ═══
     `=== LANGUAGE ===\n` +
     `Respond in ${aiLang}. If the user writes in a different language, match it. ` +
