@@ -19,45 +19,95 @@ import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, Platform }
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "../theme";
 
-// ── Marker regex ──
-const MARKER_RE = /\[(CHART|MERMAID|TABLE|STAT|PROGRESS|COMPARE|TIMELINE|CALLOUT):([\s\S]*?)\]/g;
+// ── Marker detection: find [TYPE:...] with balanced bracket matching ──
+// The AI generates markers like [CHART:{"type":"bar","data":[...]}] where the
+// JSON payload itself contains ] characters. A simple regex can't handle this,
+// so we scan for [TYPE: and then find the matching closing ] by tracking bracket depth.
+const MARKER_TYPES = ["CHART", "MERMAID", "TABLE", "STAT", "PROGRESS", "COMPARE", "TIMELINE", "CALLOUT"];
+
+function findMarkers(text) {
+  const blocks = [];
+  let pos = 0;
+  while (pos < text.length) {
+    // Find next [TYPE: pattern
+    const bracketPos = text.indexOf("[", pos);
+    if (bracketPos === -1) {
+      // Remaining text
+      const rest = text.slice(pos).trim();
+      if (rest) blocks.push({ type: "text", content: rest });
+      break;
+    }
+    // Check if this is a known marker type
+    let matchedType = null;
+    let headerEnd = -1;
+    for (const mt of MARKER_TYPES) {
+      const prefix = `[${mt}:`;
+      if (text.substring(bracketPos, bracketPos + prefix.length) === prefix) {
+        matchedType = mt;
+        headerEnd = bracketPos + prefix.length;
+        break;
+      }
+    }
+    if (!matchedType) {
+      // Not a marker, continue searching
+      pos = bracketPos + 1;
+      continue;
+    }
+    // Text before this marker
+    if (bracketPos > pos) {
+      const before = text.slice(pos, bracketPos).trim();
+      if (before) blocks.push({ type: "text", content: before });
+    }
+    // For MERMAID, the payload ends at the next ] (no nested brackets in mermaid source typically)
+    if (matchedType === "MERMAID") {
+      const endPos = text.indexOf("]", headerEnd);
+      if (endPos === -1) {
+        // No closing bracket — treat as text
+        blocks.push({ type: "text", content: text.slice(bracketPos).trim() });
+        break;
+      }
+      const payload = text.slice(headerEnd, endPos).trim();
+      blocks.push({ type: "mermaid", content: payload });
+      pos = endPos + 1;
+      continue;
+    }
+    // For JSON markers, find matching ] by tracking bracket depth
+    let depth = 1; // we already consumed the opening [
+    let i = headerEnd;
+    let inString = false;
+    let escapeNext = false;
+    while (i < text.length && depth > 0) {
+      const ch = text[i];
+      if (escapeNext) { escapeNext = false; i++; continue; }
+      if (ch === "\\") { escapeNext = true; i++; continue; }
+      if (ch === '"') { inString = !inString; i++; continue; }
+      if (!inString) {
+        if (ch === "[") depth++;
+        else if (ch === "]") depth--;
+      }
+      i++;
+    }
+    if (depth > 0) {
+      // Unbalanced — treat as text
+      blocks.push({ type: "text", content: text.slice(bracketPos).trim() });
+      break;
+    }
+    const rawPayload = text.slice(headerEnd, i - 1).trim(); // i-1 excludes the closing ]
+    try {
+      const data = JSON.parse(rawPayload);
+      blocks.push({ type: matchedType.toLowerCase(), data });
+    } catch (e) {
+      blocks.push({ type: "text", content: `[${matchedType}: ${rawPayload}]` });
+    }
+    pos = i;
+  }
+  return blocks.length > 0 ? blocks : [{ type: "text", content: text }];
+}
 
 // ── Main parser: splits text into segments and viz blocks ──
 export function parseVizBlocks(text) {
   if (!text) return [{ type: "text", content: "" }];
-  const blocks = [];
-  let lastIndex = 0;
-  // Reset regex
-  MARKER_RE.lastIndex = 0;
-  let match;
-  while ((match = MARKER_RE.exec(text)) !== null) {
-    // Text before marker
-    if (match.index > lastIndex) {
-      const before = text.slice(lastIndex, match.index).trim();
-      if (before) blocks.push({ type: "text", content: before });
-    }
-    const vizType = match[1];
-    const rawPayload = match[2].trim();
-    // For MERMAID, payload is the diagram source (not JSON)
-    if (vizType === "MERMAID") {
-      blocks.push({ type: "mermaid", content: rawPayload });
-    } else {
-      try {
-        const data = JSON.parse(rawPayload);
-        blocks.push({ type: vizType.toLowerCase(), data });
-      } catch (e) {
-        // If JSON parse fails, render as text
-        blocks.push({ type: "text", content: `[${vizType}: ${rawPayload}]` });
-      }
-    }
-    lastIndex = match.index + match[0].length;
-  }
-  // Remaining text after last marker
-  if (lastIndex < text.length) {
-    const after = text.slice(lastIndex).trim();
-    if (after) blocks.push({ type: "text", content: after });
-  }
-  return blocks.length > 0 ? blocks : [{ type: "text", content: text }];
+  return findMarkers(text);
 }
 
 // ── Color palette for charts ──
