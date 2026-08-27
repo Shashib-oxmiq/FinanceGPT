@@ -7,6 +7,17 @@ import { CONFIG } from "../config";
 import { Platform } from "react-native";
 import { api } from "./api";
 import { FORMS_DATA, DOC_TEMPLATES } from "./formsData";
+import { buildFinancialProfile, formatProfileForPrompt } from "./financialProfile";
+import { getLoans } from "./loans";
+import { getBills } from "./bills";
+import { getGoals } from "./goals";
+import { getProperties } from "./property";
+import { getRetirementCorpus } from "./retirement";
+import { getEducationPlans } from "./education";
+import { getExpenses } from "./expenses";
+import { getAllMemories } from "./aiMemory";
+import { checkEmergencyStatus } from "./emergencyService";
+import { computeHealthScore } from "./healthScore";
 
 const BASE_URL = CONFIG.AI_BASE_URL;
 const BACKEND_URL = CONFIG.BACKEND_URL;
@@ -146,19 +157,41 @@ export async function streamChat(systemPrompt, userMessage, model, onToken) {
 export async function buildSystemPrompt(user, history, langCode) {
   const profile = user?.profile || {};
 
-  // ── Gather user data ──
-  let investments = [];
-  let insurance = [];
-  let documents = [];
-  let reminders = [];
+  // ── Gather ALL user data for interconnected AI context ──
+  let investments = [], insurance = [], documents = [], reminders = [];
+  let loans = [], bills = [], goals = [], properties = [];
+  let retirement = [], educationPlans = [], expenses = [], aiMemories = [];
+  let healthScore = null, emergencyStatus = null, financialProfile = null;
+  let familyMembers = [], contacts = [];
 
   try {
     if (user?.user_id) {
-      investments = await api.getInvestments(user.user_id);
-      insurance = await api.getInsurance(user.user_id);
-      documents = await api.getDocuments(user.user_id);
-      const rem = await api.getReminders(user.user_id);
+      const uid = user.user_id;
+      investments = await api.getInvestments(uid);
+      insurance = await api.getInsurance(uid);
+      documents = await api.getDocuments(uid);
+      const rem = await api.getReminders(uid);
       reminders = rem.reminders || [];
+
+      // Load all additional financial data
+      try { loans = await getLoans(uid); } catch (e) { console.warn("AI: loans load failed:", e.message); }
+      try { bills = await getBills(uid); } catch (e) { console.warn("AI: bills load failed:", e.message); }
+      try { goals = await getGoals(uid); } catch (e) { console.warn("AI: goals load failed:", e.message); }
+      try { properties = await getProperties(uid); } catch (e) { console.warn("AI: properties load failed:", e.message); }
+      try { retirement = await getRetirementCorpus(uid); } catch (e) { console.warn("AI: retirement load failed:", e.message); }
+      try { educationPlans = await getEducationPlans(uid); } catch (e) { console.warn("AI: education load failed:", e.message); }
+      try { expenses = await getExpenses(uid); } catch (e) { console.warn("AI: expenses load failed:", e.message); }
+      try { aiMemories = await getAllMemories(uid); } catch (e) { console.warn("AI: memory load failed:", e.message); }
+      try { healthScore = await computeHealthScore(uid); } catch (e) { console.warn("AI: health score failed:", e.message); }
+      try { emergencyStatus = await checkEmergencyStatus(uid); } catch (e) { console.warn("AI: emergency status failed:", e.message); }
+      try { financialProfile = await buildFinancialProfile(uid); } catch (e) { console.warn("AI: profile build failed:", e.message); }
+
+      // Load family + contacts via dbAll
+      try {
+        const { dbAll } = await import("./db");
+        familyMembers = await dbAll("SELECT * FROM family_members WHERE user_id = ?", [uid]);
+        contacts = await dbAll("SELECT * FROM contacts WHERE user_id = ?", [uid]);
+      } catch (e) { console.warn("AI: family/contacts load failed:", e.message); }
     }
   } catch (e) { console.warn("Failed to load user data for prompt:", e); }
 
@@ -176,6 +209,46 @@ export async function buildSystemPrompt(user, history, langCode) {
 
   const remList = reminders.filter(r => !r.completed).map((r) =>
     `- ${r.title} | due:${r.due_date} | priority:${r.priority}`
+  ).join("\n");
+
+  const loanList = loans.map((l) =>
+    `- ${l.loan_type} | ${l.lender} | principal:${l.principal} | rate:${l.interest_rate}% | EMI:${l.emi_amount} | remaining:${l.remaining_amount} | ends:${l.end_date || "N/A"}`
+  ).join("\n");
+
+  const billList = bills.map((b) =>
+    `- ${b.bill_type} | ${b.provider} | amount:${b.amount} | due:${b.due_date} | paid:${b.paid ? "yes" : "no"}`
+  ).join("\n");
+
+  const goalList = goals.map((g) =>
+    `- ${g.title} | target:${g.target_amount} | current:${g.current_amount} | monthly:${g.monthly_contribution} | by:${g.target_date} | ${g.category}`
+  ).join("\n");
+
+  const propList = properties.map((p) =>
+    `- ${p.property_type} | ${p.address || p.city} | purchase:${p.purchase_price} | current:${p.current_value} | tax_due:${p.property_tax_due || "N/A"}`
+  ).join("\n");
+
+  const retList = retirement.map((r) =>
+    `- ${r.source} | current:${r.current_value} | monthly:${r.monthly_contribution} | employer:${r.employer_contribution} | return:${r.expected_return}%`
+  ).join("\n");
+
+  const eduList = educationPlans.map((e) =>
+    `- ${e.child_name} | age:${e.child_age} | target:${e.target_education} | savings:${e.current_savings} | monthly:${e.monthly_contribution} | est_cost:${e.estimated_cost}`
+  ).join("\n");
+
+  const expList = expenses.slice(0, 20).map((e) =>
+    `- ${e.category} | ${e.merchant || ""} | amount:${e.amount} | date:${e.date}`
+  ).join("\n");
+
+  const memList = aiMemories.map((m) =>
+    `- ${m.category}:${m.key} = ${m.value}`
+  ).join("\n");
+
+  const famList = familyMembers.map((f) =>
+    `- ${f.name} | ${f.relationship} | access:${f.access_scope}`
+  ).join("\n");
+
+  const contactList = contacts.map((c) =>
+    `- ${c.name} | ${c.relationship} | ${c.phone || c.email || ""}`
   ).join("\n");
 
   const formCats = [...new Set(FORMS_DATA.map(f => f.category))].join(", ");
@@ -542,6 +615,27 @@ export async function buildSystemPrompt(user, history, langCode) {
     `If all money is in FD, explain inflation. If not investing, explain compound interest. ` +
     `Teach at the user's level — beginner, intermediate, or advanced based on their questions.\n` +
     `=== END LITERACY ===\n\n` +
+
+    // ═══ USER FINANCIAL PROFILE — ALL DATA ═══
+    `=== USER FINANCIAL PROFILE (REAL DATA — USE THIS, DON'T ASK THE USER) ===\n` +
+    (investments.length > 0 ? `INVESTMENTS:\n${invList}\n\n` : "") +
+    (insurance.length > 0 ? `INSURANCE:\n${insList}\n\n` : "") +
+    (loans.length > 0 ? `LOANS:\n${loanList}\n\n` : "") +
+    (bills.length > 0 ? `BILLS:\n${billList}\n\n` : "") +
+    (goals.length > 0 ? `GOALS:\n${goalList}\n\n` : "") +
+    (properties.length > 0 ? `PROPERTIES:\n${propList}\n\n` : "") +
+    (retirement.length > 0 ? `RETIREMENT:\n${retList}\n\n` : "") +
+    (educationPlans.length > 0 ? `EDUCATION PLANS:\n${eduList}\n\n` : "") +
+    (expenses.length > 0 ? `RECENT EXPENSES (last 20):\n${expList}\n\n` : "") +
+    (reminders.length > 0 ? `REMINDERS:\n${remList}\n\n` : "") +
+    (documents.length > 0 ? `DOCUMENTS:\n${docList}\n\n` : "") +
+    (familyMembers.length > 0 ? `FAMILY MEMBERS:\n${famList}\n\n` : "") +
+    (contacts.length > 0 ? `TRUSTED CONTACTS:\n${contactList}\n\n` : "") +
+    (aiMemories.length > 0 ? `AI MEMORIES:\n${memList}\n\n` : "") +
+    (healthScore ? `HEALTH SCORE: ${healthScore.score}/100 (${healthScore.label || ""})\n\n` : "") +
+    (emergencyStatus && emergencyStatus.enabled ? `EMERGENCY ACCESS: Enabled, phase=${emergencyStatus.phase}, inactive_days=${emergencyStatus.inactiveDays || 0}\n\n` : "") +
+    (financialProfile ? `COMPOSITE PROFILE:\n${formatProfileForPrompt(financialProfile)}\n\n` : "") +
+    `=== END USER FINANCIAL PROFILE ===\n\n` +
 
     // ═══ LANGUAGE ═══
     `=== LANGUAGE ===\n` +
