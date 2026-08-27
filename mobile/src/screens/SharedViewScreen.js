@@ -5,7 +5,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList, Activity
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "../theme";
 
-export default function SharedViewScreen({ route }) {
+export default function SharedViewScreen({ route, navigation }) {
   const [shareId, setShareId] = useState(route?.params?.shareId || "");
   const [password, setPassword] = useState("");
   const [unlocked, setUnlocked] = useState(false);
@@ -42,6 +42,9 @@ export default function SharedViewScreen({ route }) {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={20} color={theme.text} />
+          </TouchableOpacity>
           <Ionicons name="unlock" size={24} color={theme.accent} />
           <Text style={styles.title}>Shared Documents</Text>
         </View>
@@ -66,8 +69,13 @@ export default function SharedViewScreen({ route }) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Shared View</Text>
-        <Text style={styles.subtitle}>Enter share ID and password to view documents</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={20} color={theme.text} />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title}>Shared View</Text>
+          <Text style={styles.subtitle}>Enter share ID and password to view documents</Text>
+        </View>
       </View>
       <View style={styles.form}>
         <TextInput style={styles.input} placeholder="Share ID" placeholderTextColor={theme.muted} value={shareId} onChangeText={setShareId} autoCapitalize="none" />
@@ -82,7 +90,8 @@ export default function SharedViewScreen({ route }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.background },
-  header: { padding: 20, paddingTop: 60 },
+  header: { flexDirection: "row", alignItems: "center", gap: 12, padding: 20, paddingTop: 60 },
+  backBtn: { padding: 4 },
   title: { fontSize: 24, fontWeight: "800", color: theme.text },
   subtitle: { fontSize: 14, color: theme.muted, marginTop: 4 },
   form: { padding: 20 },

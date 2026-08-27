@@ -11,7 +11,7 @@ import { theme } from "../theme";
 
 const CATEGORIES = ["All", "Identity", "Financial", "Property", "Insurance", "Tax", "Medical", "Legal", "Other"];
 
-export default function VaultScreen() {
+export default function VaultScreen({ navigation }) {
   const { t } = useLanguage();
   const { user } = useAuth();
   const [items, setItems] = useState([]);
@@ -60,8 +60,13 @@ export default function VaultScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>{t("page.vault.title")}</Text>
-        <Text style={styles.subtitle}>{t("page.vault.subtitle")}</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={20} color={theme.text} />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title}>{t("page.vault.title")}</Text>
+          <Text style={styles.subtitle}>{t("page.vault.subtitle")}</Text>
+        </View>
       </View>
       <View style={styles.chips}>
         {CATEGORIES.map((c) => (
@@ -94,7 +99,8 @@ export default function VaultScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.background },
   center: { flex: 1, backgroundColor: theme.background, justifyContent: "center", alignItems: "center" },
-  header: { padding: 20, paddingTop: 60 },
+  header: { flexDirection: "row", alignItems: "center", gap: 12, padding: 20, paddingTop: 60 },
+  backBtn: { padding: 4 },
   title: { fontSize: 24, fontWeight: "800", color: theme.text },
   subtitle: { fontSize: 14, color: theme.muted, marginTop: 4 },
   chips: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 16, gap: 8, marginBottom: 12 },

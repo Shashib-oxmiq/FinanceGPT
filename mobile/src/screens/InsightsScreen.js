@@ -8,7 +8,7 @@ import SmartAddBar from "../components/SmartAddBar";
 import PanelChat from "../components/PanelChat";
 import { theme, formatMoney } from "../theme";
 
-export default function InsightsScreen() {
+export default function InsightsScreen({ navigation }) {
   const { t } = useLanguage();
   const { user } = useAuth();
   const [summary, setSummary] = useState(null);
@@ -32,8 +32,13 @@ export default function InsightsScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
       <View style={styles.header}>
-        <Text style={styles.title}>{t("page.insights.title")}</Text>
-        <Text style={styles.subtitle}>{t("page.insights.subtitle")}</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={20} color={theme.text} />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title}>{t("page.insights.title")}</Text>
+          <Text style={styles.subtitle}>{t("page.insights.subtitle")}</Text>
+        </View>
       </View>
       <View style={styles.heroCard}>
         <Text style={styles.heroLabel}>Portfolio ROI</Text>
@@ -76,7 +81,8 @@ export default function InsightsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.background },
   center: { flex: 1, backgroundColor: theme.background, justifyContent: "center", alignItems: "center" },
-  header: { padding: 20, paddingTop: 60 },
+  header: { flexDirection: "row", alignItems: "center", gap: 12, padding: 20, paddingTop: 60 },
+  backBtn: { padding: 4 },
   title: { fontSize: 24, fontWeight: "800", color: theme.text },
   subtitle: { fontSize: 14, color: theme.muted, marginTop: 4 },
   heroCard: { marginHorizontal: 20, backgroundColor: theme.card, borderRadius: 20, padding: 24, alignItems: "center", borderWidth: 1, borderColor: theme.border },

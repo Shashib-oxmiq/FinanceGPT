@@ -5,7 +5,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
 import { theme } from "../theme";
 
-export default function GmailScreen() {
+export default function GmailScreen({ navigation }) {
   const { t } = useLanguage();
   const { user } = useAuth();
   const [email, setEmail] = useState("");
@@ -27,8 +27,13 @@ export default function GmailScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>{t("page.gmail.title")}</Text>
-        <Text style={styles.subtitle}>{t("page.gmail.subtitle")}</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={20} color={theme.text} />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title}>{t("page.gmail.title")}</Text>
+          <Text style={styles.subtitle}>{t("page.gmail.subtitle")}</Text>
+        </View>
       </View>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Connect with App Password</Text>
@@ -45,7 +50,8 @@ export default function GmailScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.background },
-  header: { padding: 20, paddingTop: 60 },
+  header: { flexDirection: "row", alignItems: "center", gap: 12, padding: 20, paddingTop: 60 },
+  backBtn: { padding: 4 },
   title: { fontSize: 24, fontWeight: "800", color: theme.text },
   subtitle: { fontSize: 14, color: theme.muted, marginTop: 4 },
   section: { padding: 20 },

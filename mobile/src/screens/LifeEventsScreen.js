@@ -19,7 +19,7 @@ const EVENT_TYPES = [
   { type: "business_start", icon: "storefront", label: "Start Business" },
 ];
 
-export default function LifeEventsScreen() {
+export default function LifeEventsScreen({ navigation }) {
   const { t } = useLanguage();
   const { user } = useAuth();
   const [items, setItems] = useState([]);
@@ -39,8 +39,13 @@ export default function LifeEventsScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>{t("page.life_events.title")}</Text>
-        <Text style={styles.subtitle}>{t("page.life_events.subtitle")}</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={20} color={theme.text} />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title}>{t("page.life_events.title")}</Text>
+          <Text style={styles.subtitle}>{t("page.life_events.subtitle")}</Text>
+        </View>
       </View>
       <Text style={styles.sectionTitle}>Plan for a Life Event</Text>
       <View style={styles.grid}>
@@ -72,7 +77,8 @@ export default function LifeEventsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.background },
   center: { flex: 1, backgroundColor: theme.background, justifyContent: "center", alignItems: "center" },
-  header: { padding: 20, paddingTop: 60 },
+  header: { flexDirection: "row", alignItems: "center", gap: 12, padding: 20, paddingTop: 60 },
+  backBtn: { padding: 4 },
   title: { fontSize: 24, fontWeight: "800", color: theme.text },
   subtitle: { fontSize: 14, color: theme.muted, marginTop: 4 },
   sectionTitle: { fontSize: 16, fontWeight: "700", color: theme.text, paddingHorizontal: 20, paddingTop: 20, marginBottom: 12 },

@@ -10,7 +10,7 @@ import { theme } from "../theme";
 
 const EMPTY = { title: "", description: "", due_date: "", priority: "medium", category: "" };
 
-export default function RemindersScreen() {
+export default function RemindersScreen({ navigation }) {
   const { t } = useLanguage();
   const { user } = useAuth();
   const [items, setItems] = useState([]);
@@ -41,8 +41,13 @@ export default function RemindersScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>{t("page.reminders.title")}</Text>
-        <Text style={styles.subtitle}>{t("page.reminders.subtitle")}</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={20} color={theme.text} />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title}>{t("page.reminders.title")}</Text>
+          <Text style={styles.subtitle}>{t("page.reminders.subtitle")}</Text>
+        </View>
       </View>
       {items.length === 0 ? (
         <View style={styles.empty}><Ionicons name="notifications-off" size={40} color={theme.muted} /><Text style={styles.emptyText}>No reminders yet.</Text></View>
@@ -82,7 +87,8 @@ export default function RemindersScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.background },
   center: { flex: 1, backgroundColor: theme.background, justifyContent: "center", alignItems: "center" },
-  header: { padding: 20, paddingTop: 60 },
+  header: { flexDirection: "row", alignItems: "center", gap: 12, padding: 20, paddingTop: 60 },
+  backBtn: { padding: 4 },
   title: { fontSize: 24, fontWeight: "800", color: theme.text },
   subtitle: { fontSize: 14, color: theme.muted, marginTop: 4 },
   empty: { flex: 1, justifyContent: "center", alignItems: "center", paddingBottom: 100 },

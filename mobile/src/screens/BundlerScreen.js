@@ -10,7 +10,7 @@ import SmartAddBar from "../components/SmartAddBar";
 import PanelChat from "../components/PanelChat";
 import { theme } from "../theme";
 
-export default function BundlerScreen() {
+export default function BundlerScreen({ navigation }) {
   const { t } = useLanguage();
   const { user } = useAuth();
   const [documents, setDocuments] = useState([]);
@@ -56,8 +56,13 @@ export default function BundlerScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Document Bundler</Text>
-        <Text style={styles.subtitle}>Group documents and share securely</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={20} color={theme.text} />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title}>Document Bundler</Text>
+          <Text style={styles.subtitle}>Group documents and share securely</Text>
+        </View>
       </View>
       <SmartAddBar context="Bundler" onSaved={load} />
       {documents.length === 0 ? (
@@ -125,7 +130,8 @@ export default function BundlerScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.background },
   center: { flex: 1, backgroundColor: theme.background, justifyContent: "center", alignItems: "center" },
-  header: { padding: 20, paddingTop: 60 },
+  header: { flexDirection: "row", alignItems: "center", gap: 12, padding: 20, paddingTop: 60 },
+  backBtn: { padding: 4 },
   title: { fontSize: 24, fontWeight: "800", color: theme.text },
   subtitle: { fontSize: 14, color: theme.muted, marginTop: 4 },
   empty: { flex: 1, justifyContent: "center", alignItems: "center", paddingBottom: 100 },
