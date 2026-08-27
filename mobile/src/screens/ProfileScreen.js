@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { View, Text, ScrollView, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../contexts/AuthContext";
@@ -15,6 +15,8 @@ export default function ProfileScreen({ navigation }) {
   const [address, setAddress] = useState(user?.profile?.address || "");
   const [income, setIncome] = useState(user?.profile?.income || "");
   const [saving, setSaving] = useState(false);
+  const [devMode, setDevMode] = useState(false);
+  const tapCountRef = useRef(0);
 
   const save = async () => {
     setSaving(true);
@@ -84,14 +86,27 @@ export default function ProfileScreen({ navigation }) {
         </View>
       </View>
 
-      {/* QA Test Suite */}
+      {/* Hidden dev mode: tap app version 5x to reveal QA tools (like Android dev options) */}
       <TouchableOpacity
-        style={[styles.logoutBtn, { borderColor: theme.primary + "40", marginBottom: 8 }]}
-        onPress={() => navigation.navigate("QATest")}
+        style={{ alignItems: "center", paddingVertical: 8 }}
+        onPress={() => {
+          tapCountRef.current++;
+          if (tapCountRef.current >= 5) { setDevMode(true); tapCountRef.current = 0; }
+        }}
       >
-        <Ionicons name="flask" size={18} color={theme.primary} />
-        <Text style={[styles.logoutText, { color: theme.primary }]}>Run QA Test Suite</Text>
+        <Text style={{ fontSize: 11, color: theme.muted }}>Everkin v1.0.0</Text>
       </TouchableOpacity>
+
+      {/* QA Test Suite — only visible in dev mode */}
+      {devMode && (
+        <TouchableOpacity
+          style={[styles.logoutBtn, { borderColor: theme.primary + "40", marginBottom: 8 }]}
+          onPress={() => navigation.navigate("QATest")}
+        >
+          <Ionicons name="flask" size={18} color={theme.primary} />
+          <Text style={[styles.logoutText, { color: theme.primary }]}>Run QA Test Suite</Text>
+        </TouchableOpacity>
+      )}
 
       {/* Logout */}
       <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
