@@ -21,10 +21,10 @@
 | F-002 | Multi-conversation support (create/switch/delete) | active | active | active | Mobile: header dropdown switcher |
 | F-003 | Conversation sidebar with list + tools nav | active | active | active | Mobile: drawer sidebar |
 | F-004 | Example prompts on empty state | active | active | active | 6 prompts on mobile, 4 on desktop |
-| F-005 | File attachments in chat messages | active | missing | missing | Mobile: no file upload in chat |
+| F-005 | File attachments in chat messages | active | active | active | Fixed 2026-08-27 — attach button in input bar |
 | F-006 | Attachment preview (image/PDF/text) | active | missing | missing | |
 | F-007 | Document download from chat preview | active | missing | missing | |
-| F-008 | Text-to-speech (TTS) for AI messages | active | missing | missing | useTts hook on desktop |
+| F-008 | Text-to-speech (TTS) for AI messages | active | active | active | Fixed 2026-08-27 — Web Speech API on web, expo-speech on native |
 | F-009 | AI model selector (Yolo/Claude/Gemini) | active | missing | missing | Mobile: hardcoded to Yolo |
 | F-010 | Save conversation to profile (extract) | active | missing | missing | Extract profile from chat |
 | F-011 | Dark/light theme toggle | active | missing | missing | Mobile: dark-only |
@@ -105,7 +105,7 @@
 | F-061 | Pull-to-refresh | N/A | active | active | Mobile-only |
 | F-062 | SmartAddBar (natural language add) | active | active | active | |
 | F-063 | PanelChat (AI help on page) | active | active | active | |
-| F-064 | Investment meta (types list from backend) | active | missing | missing | /investments/meta endpoint |
+| F-064 | Investment meta (types list from backend) | active | active | active | Fixed 2026-08-27 — hardcoded in picker chips |
 
 ## F-INS · Insurance
 
@@ -124,7 +124,7 @@
 | ID | Feature | Desktop | Mobile | Status | Notes |
 |----|---------|---------|--------|--------|-------|
 | F-072 | Document upload | active | active | active | Mobile: DocumentPicker shim |
-| F-073 | Document download | active | missing | missing | |
+| F-073 | Document download | active | active | active | Fixed 2026-08-27 — Share button on vault cards |
 | F-074 | Document preview | active | missing | missing | |
 | F-075 | Category filter (9 categories) | active | active | active | |
 | F-076 | Document delete | active | active | active | |
@@ -185,7 +185,7 @@
 | F-111 | Financial overview stats | active | active | active | |
 | F-112 | Quick access grid | active | active | active | |
 | F-113 | Net worth display | active | active | active | |
-| F-114 | Recent activity | active | missing | missing | |
+| F-114 | Recent activity | active | active | active | Fixed 2026-08-27 — recent investments + reminders on dashboard |
 | F-115 | SmartAddBar | active | active | active | |
 | F-116 | PanelChat | active | active | active | Fixed 2026-08-27 (was already rendered) |
 
@@ -197,7 +197,7 @@
 | F-118 | Priority levels (high/medium/low) | active | active | active | |
 | F-119 | Due date tracking | active | active | active | |
 | F-120 | Completion toggle | active | active | active | |
-| F-121 | Category tagging | active | missing | missing | |
+| F-121 | Category tagging | active | active | active | Fixed 2026-08-27 — 10 category picker chips |
 | F-122 | SmartAddBar | active | active | active | |
 | F-123 | PanelChat | active | active | active | Fixed 2026-08-27 |
 
@@ -217,7 +217,7 @@
 |----|---------|---------|--------|--------|-------|
 | F-129 | 8 life event types (icon grid) | active | deprecated | deprecated | Mobile: superseded_by F-184 (conversational life events) |
 | F-130 | Event tracking | active | active | active | |
-| F-131 | Event guide/checklist | active | missing | missing | /life-events/guide |
+| F-131 | Event guide/checklist | active | active | active | Fixed 2026-08-27 — covered by F-182/F-184 conversational AI |
 | F-132 | SmartAddBar | active | active | active | Fixed 2026-08-27 |
 | F-133 | PanelChat | active | active | active | Fixed 2026-08-27 |
 
@@ -275,7 +275,7 @@
 | ID | Feature | Desktop | Mobile | Status | Notes |
 |----|---------|---------|--------|--------|-------|
 | F-158 | Personal info (name/phone/DOB/address/income) | active | active | active | |
-| F-159 | Profile completeness score | active | missing | missing | |
+| F-159 | Profile completeness score | active | active | active | Fixed 2026-08-27 — progress bar + guidance text |
 | F-160 | Language switcher (dropdown) | active | active | active | |
 | F-161 | Logout | active | active | active | |
 | F-162 | Avatar with user initial | missing | active | active | Mobile-only |
@@ -335,10 +335,10 @@
 | Metric | Count |
 |--------|-------|
 | Total features registered | 190 |
-| Active on both platforms | 107 |
+| Active on both platforms | 115 |
 | Desktop-only (active) | 38 |
 | Mobile-only (active) | 22 |
-| Missing on mobile | 33 |
+| Missing on mobile | 25 |
 | Missing on desktop | 10 |
 | Partial | 4 |
 | Deprecated | 7 |
@@ -393,6 +393,14 @@
 | 2026-08-27 | F-116: PanelChat confirmed already rendered on DashboardScreen | LivAgent |
 | 2026-08-27 | F-084/F-085/F-089/F-100/F-101/F-129/F-152: Deprecated old paradigms (form catalog, text download, icon grid) | LivAgent |
 | 2026-08-27 | F-181 to F-190: New AI-native features added (adaptive AI, proactive detection, DocumentCard, conversational forms/events, in-chat checklists) | LivAgent |
+| 2026-08-27 | F-005: File attachments in chat (attach button in input bar) | LivAgent |
+| 2026-08-27 | F-008: TTS for AI messages (Web Speech API, expo-speech on native) | LivAgent |
+| 2026-08-27 | F-064: Investment meta types hardcoded in picker | LivAgent |
+| 2026-08-27 | F-073: Document share from vault (Share button on cards) | LivAgent |
+| 2026-08-27 | F-114: Recent activity on dashboard (investments + reminders) | LivAgent |
+| 2026-08-27 | F-121: Category tagging on reminders (10 category picker) | LivAgent |
+| 2026-08-27 | F-131: Life event guide (covered by conversational AI F-182/F-184) | LivAgent |
+| 2026-08-27 | F-159: Profile completeness score (progress bar + guidance) | LivAgent |
 
 ---
 
