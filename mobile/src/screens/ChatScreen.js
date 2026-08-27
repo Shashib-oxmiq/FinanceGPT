@@ -15,6 +15,8 @@ import { generateDocumentText, generateDocumentObject, downloadDocument, getTemp
 import { getFormById } from "../services/formsData";
 import DocumentCard from "../components/DocumentCard";
 import { speak, stopSpeaking } from "../services/tts";
+import { getDailyBriefing } from "../services/briefing";
+import { startListening, stopListening, isVoiceSupported, getIsListening } from "../services/voice";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import { theme } from "../theme";
 
@@ -80,6 +82,24 @@ export default function ChatScreen({ navigation }) {
   }, [user]);
 
   useEffect(() => { loadConvos(); }, [loadConvos]);
+
+  // ── Daily Briefing ──
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      try {
+        const briefing = await getDailyBriefing(user, lang);
+        if (briefing && briefing.text) {
+          // Show briefing as a special system message at top
+          setMessages((m) => {
+            // Don't add if already has a briefing message
+            if (m.some((msg) => msg.isBriefing)) return m;
+            return [{ role: "assistant", content: briefing.text, message_id: "briefing_" + briefing.timestamp, isBriefing: true }, ...m];
+          });
+        }
+      } catch (e) { console.warn("Briefing failed:", e.message); }
+    })();
+  }, [user, lang]);
 
   // ── Select conversation ──
   const selectConvo = async (id) => {
@@ -255,6 +275,28 @@ export default function ChatScreen({ navigation }) {
         catch (e) { console.warn(e); }
       }
 
+      // ── Detect [GOAL_ADD:...] ──
+      const goalAddMatches = [...fullText.matchAll(/\[GOAL_ADD:(\{[^}]+\})\]/g)];
+      for (const m of goalAddMatches) {
+        try {
+          const { createGoal } = require("../services/goals");
+          await createGoal(user.user_id, JSON.parse(m[1]));
+          cleanText = cleanText.replace(m[0], "");
+          showToast("Financial goal created");
+        } catch (e) { console.warn(e); }
+      }
+
+      // ── Detect [EXP_ADD:...] ──
+      const expAddMatches = [...fullText.matchAll(/\[EXP_ADD:(\{[^}]+\})\]/g)];
+      for (const m of expAddMatches) {
+        try {
+          const { createExpense } = require("../services/expenses");
+          await createExpense(user.user_id, JSON.parse(m[1]));
+          cleanText = cleanText.replace(m[0], "");
+          showToast("Expense logged");
+        } catch (e) { console.warn(e); }
+      }
+
       // Update the assistant message with cleaned text
       setMessages((m) => m.map((msg) =>
         msg.message_id === assistantId ? { ...msg, content: cleanText } : msg
@@ -272,6 +314,21 @@ export default function ChatScreen({ navigation }) {
 
   // ── Render message ──
   const renderMessage = ({ item }) => {
+    if (item.isBriefing) {
+      return (
+        <View style={styles.briefingCard}>
+          <View style={styles.briefingHeader}>
+            <Ionicons name="sunny" size={16} color={theme.accent} />
+            <Text style={styles.briefingLabel}>Today's Briefing</Text>
+          </View>
+          <Text style={styles.briefingText}>{item.content}</Text>
+          <TouchableOpacity style={styles.speakBtn} onPress={() => speak(item.content, lang)}>
+            <Ionicons name="volume-medium" size={14} color={theme.muted} />
+            <Text style={styles.speakBtnText}>Listen</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
     if (item.isDocument && item.docObj) {
       return (
         <View style={styles.msgDocWrap}>
@@ -500,6 +557,27 @@ export default function ChatScreen({ navigation }) {
             }}>
               <Ionicons name="attach" size={20} color={theme.muted} />
             </TouchableOpacity>
+            {isVoiceSupported() && (
+              <TouchableOpacity
+                style={[styles.attachBtn, getIsListening() && styles.voiceBtnActive]}
+                onPress={() => {
+                  if (getIsListening()) {
+                    stopListening();
+                  } else {
+                    startListening(
+                      (text, isFinal) => {
+                        if (text) setInput(text);
+                        if (isFinal) setInput(prev => prev || text);
+                      },
+                      (err) => console.warn("Voice error:", err),
+                      lang
+                    );
+                  }
+                }}
+              >
+                <Ionicons name={getIsListening() ? "radio-button-on" : "mic"} size={20} color={getIsListening() ? theme.destructive : theme.muted} />
+              </TouchableOpacity>
+            )}
             <TextInput
               style={styles.input}
               placeholder={t("chat.placeholder")}
@@ -590,12 +668,18 @@ const styles = StyleSheet.create({
   msgDocWrap: { alignSelf: "stretch", marginVertical: 4 },
   speakBtn: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 8, alignSelf: "flex-start" },
   speakBtnText: { fontSize: 11, color: theme.muted, fontWeight: "500" },
+  // Briefing
+  briefingCard: { marginHorizontal: 12, marginVertical: 8, backgroundColor: theme.accent + "10", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: theme.accent + "40" },
+  briefingHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
+  briefingLabel: { fontSize: 12, fontWeight: "700", color: theme.accent, textTransform: "uppercase", letterSpacing: 1 },
+  briefingText: { fontSize: 14, color: theme.text, lineHeight: 20 },
   // ── Toast ──
   toast: { position: "absolute", top: 60, left: 0, right: 0, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 8, marginHorizontal: 40, backgroundColor: theme.card, borderRadius: 12, borderWidth: 1, borderColor: theme.border, elevation: 4, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
   toastText: { fontSize: 13, color: theme.accent, fontWeight: "500" },
   // ── Input ──
   inputBar: { flexDirection: "row", alignItems: "flex-end", paddingHorizontal: 12, paddingVertical: 8, gap: 8, borderTopWidth: 1, borderTopColor: theme.border, backgroundColor: theme.card },
   attachBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: "center", alignItems: "center", borderWidth: 1, borderColor: theme.border },
+  voiceBtnActive: { borderColor: theme.destructive, backgroundColor: theme.destructive + "10" },
   input: { flex: 1, backgroundColor: theme.input, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, fontSize: 15, color: theme.text, maxHeight: 100, borderWidth: 1, borderColor: theme.border },
   sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: theme.primary, justifyContent: "center", alignItems: "center" },
 });

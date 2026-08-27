@@ -9,7 +9,7 @@
 > **Platforms**: `desktop` = Electron/web app · `mobile` = React Native iOS app
 >
 > Last updated: 2026-08-27
-> Total featuresGistered: 142
+> Total features registered: 200
 
 ---
 
@@ -330,17 +330,34 @@
 
 ---
 
+## F-NEXT10 · Next-Generation Features (10 New Ways to Improve)
+
+| ID | Feature | Desktop | Mobile | Status | Notes |
+|----|---------|---------|--------|--------|-------|
+| F-191 | Financial Health Score (0-100) | missing | active | active | Dashboard widget: emergency fund, insurance, diversification, documents, profile, debt |
+| F-192 | AI Daily Briefing | missing | active | active | Morning portfolio/deadlines/suggestion briefing, 20h cache, in-chat card |
+| F-193 | Voice Input (speech-to-text) | missing | active | active | Web Speech API on web, mic button in chat input bar |
+| F-194 | Goal-Based Planning | missing | active | active | Goals table, create/track/contribute, progress bar, on-track calculation, dashboard widget |
+| F-195 | Emergency Access (dead-man switch) | missing | active | active | Legacy screen: toggle + inactivity threshold (15/30/60/90 days) + trusted contacts |
+| F-196 | Proactive AI Notifications | missing | active | active | AI scans user data every 6h, generates contextual alerts, browser Notification API |
+| F-197 | Smart Receipt Scanner | missing | active | active | Camera capture → AI extracts amount/merchant/category → monthly expense summary |
+| F-198 | Family Vault (scoped access) | missing | active | active | Family members with 5 access scopes: full, spouse, parent, advisor, view-only |
+| F-199 | WhatsApp Integration framework | missing | partial | partial | Service + config ready, backend webhook endpoints documented, needs WhatsApp Business API |
+| F-200 | Offline AI framework | missing | active | active | Connectivity detection, cached response fallback, static KB for common queries |
+
+---
+
 ## Summary Statistics
 
 | Metric | Count |
 |--------|-------|
-| Total features registered | 190 |
+| Total features registered | 200 |
 | Active on both platforms | 115 |
 | Desktop-only (active) | 38 |
-| Mobile-only (active) | 22 |
+| Mobile-only (active) | 32 |
 | Missing on mobile | 25 |
-| Missing on desktop | 10 |
-| Partial | 4 |
+| Missing on desktop | 20 |
+| Partial | 5 |
 | Deprecated | 7 |
 
 ## Top Missing Features on Mobile (Priority Order)
@@ -401,6 +418,7 @@
 | 2026-08-27 | F-121: Category tagging on reminders (10 category picker) | LivAgent |
 | 2026-08-27 | F-131: Life event guide (covered by conversational AI F-182/F-184) | LivAgent |
 | 2026-08-27 | F-159: Profile completeness score (progress bar + guidance) | LivAgent |
+| 2026-08-27 | F-191 to F-200: 10 next-generation features added (Health Score, Daily Briefing, Voice Input, Goal Planning, Emergency Access, Proactive Notifications, Receipt Scanner, Family Vault, WhatsApp framework, Offline AI framework) | LivAgent |
 
 ---
 

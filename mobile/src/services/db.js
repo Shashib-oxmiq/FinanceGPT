@@ -175,6 +175,56 @@ export async function initDB() {
       data TEXT DEFAULT '{}',
       created_at TEXT DEFAULT (datetime('now'))
     );
+
+    -- Financial goals (goal-based planning)
+    CREATE TABLE IF NOT EXISTS goals (
+      goal_id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      target_amount REAL NOT NULL,
+      current_amount REAL DEFAULT 0,
+      target_date TEXT,
+      monthly_contribution REAL DEFAULT 0,
+      category TEXT DEFAULT 'savings',
+      status TEXT DEFAULT 'active',
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- Expenses (receipt scanner)
+    CREATE TABLE IF NOT EXISTS expenses (
+      expense_id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      amount REAL NOT NULL,
+      category TEXT,
+      merchant TEXT,
+      date TEXT,
+      notes TEXT,
+      receipt_uri TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- Family members (scoped access)
+    CREATE TABLE IF NOT EXISTS family_members (
+      member_id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      email TEXT,
+      phone TEXT,
+      relationship TEXT,
+      access_scope TEXT DEFAULT 'view',
+      invited_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- Emergency access config (dead-man switch)
+    CREATE TABLE IF NOT EXISTS emergency_config (
+      config_id TEXT PRIMARY KEY DEFAULT 'default',
+      user_id TEXT NOT NULL,
+      enabled INTEGER DEFAULT 0,
+      inactive_days INTEGER DEFAULT 30,
+      trusted_contact_ids TEXT DEFAULT '[]',
+      last_active TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
   `);
 
   return db;

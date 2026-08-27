@@ -38,6 +38,9 @@ import InsightsScreen from "./src/screens/InsightsScreen";
 import LegacyScreen from "./src/screens/LegacyScreen";
 import BundlerScreen from "./src/screens/BundlerScreen";
 import FormFillerScreen from "./src/screens/FormFillerScreen";
+import GoalsScreen from "./src/screens/GoalsScreen";
+import ExpensesScreen from "./src/screens/ExpensesScreen";
+import FamilyScreen from "./src/screens/FamilyScreen";
 import SharedViewScreen from "./src/screens/SharedViewScreen";
 
 const Stack = createNativeStackNavigator();
@@ -118,6 +121,9 @@ function AppContent() {
             <Stack.Screen name="Legacy" component={LegacyScreen} />
             <Stack.Screen name="Bundler" component={BundlerScreen} />
             <Stack.Screen name="FormFiller" component={FormFillerScreen} />
+            <Stack.Screen name="Goals" component={GoalsScreen} />
+            <Stack.Screen name="Expenses" component={ExpensesScreen} />
+            <Stack.Screen name="Family" component={FamilyScreen} />
             <Stack.Screen name="SharedView" component={SharedViewScreen} />
           </>
         )}
