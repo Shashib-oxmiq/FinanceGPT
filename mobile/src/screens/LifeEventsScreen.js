@@ -47,6 +47,7 @@ export default function LifeEventsScreen({ navigation }) {
           <Text style={styles.subtitle}>{t("page.life_events.subtitle")}</Text>
         </View>
       </View>
+      <SmartAddBar context="LifeEvents" onSaved={load} />
       <Text style={styles.sectionTitle}>Plan for a Life Event</Text>
       <View style={styles.grid}>
         {EVENT_TYPES.map((e) => (
@@ -70,6 +71,7 @@ export default function LifeEventsScreen({ navigation }) {
           />
         </View>
       )}
+      <PanelChat context="LifeEvents" title="Ask AI about life event planning" />
     </View>
   );
 }

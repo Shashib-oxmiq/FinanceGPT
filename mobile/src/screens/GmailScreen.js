@@ -4,6 +4,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
 import { theme } from "../theme";
+import SmartAddBar from "../components/SmartAddBar";
+import PanelChat from "../components/PanelChat";
 
 export default function GmailScreen({ navigation }) {
   const { t } = useLanguage();
@@ -35,6 +37,7 @@ export default function GmailScreen({ navigation }) {
           <Text style={styles.subtitle}>{t("page.gmail.subtitle")}</Text>
         </View>
       </View>
+      <SmartAddBar context="Gmail" />
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Connect with App Password</Text>
         <TextInput style={styles.input} placeholder="Gmail address" placeholderTextColor={theme.muted} value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
@@ -44,6 +47,7 @@ export default function GmailScreen({ navigation }) {
         </TouchableOpacity>
         <Text style={styles.help}>Use a Gmail App Password (not your regular password). Enable 2FA → generate App Password in Google Account settings.</Text>
       </View>
+      <PanelChat context="Gmail" title="Ask AI about email scanning" />
     </View>
   );
 }

@@ -68,6 +68,7 @@ export default function FormFillerScreen({ route, navigation }) {
             </View>
           )}
         </ScrollView>
+        <PanelChat context="FormFiller" title="Ask AI about forms" />
       </View>
     );
   }

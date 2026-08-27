@@ -40,6 +40,7 @@ export default function InsightsScreen({ navigation }) {
           <Text style={styles.subtitle}>{t("page.insights.subtitle")}</Text>
         </View>
       </View>
+      <SmartAddBar context="Insights" onSaved={load} />
       <View style={styles.heroCard}>
         <Text style={styles.heroLabel}>Portfolio ROI</Text>
         <Text style={[styles.heroValue, { color: gain >= 0 ? theme.accent : theme.destructive }]}>{roi}%</Text>
@@ -69,10 +70,7 @@ export default function InsightsScreen({ navigation }) {
       </View>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>AI Insights</Text>
-        <View style={styles.insightCard}>
-          <Ionicons name="bulb" size={20} color={theme.primary} />
-          <Text style={styles.insightText}>Ask your AI Advisor for personalized financial recommendations. Tap the Chat tab to start a conversation.</Text>
-        </View>
+        <PanelChat context="Insights" title="Ask AI for personalized recommendations" />
       </View>
     </ScrollView>
   );

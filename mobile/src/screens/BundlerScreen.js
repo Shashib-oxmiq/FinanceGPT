@@ -104,11 +104,11 @@ export default function BundlerScreen({ navigation }) {
                   ))}
                 </View>
               )}
-              <PanelChat context="Bundler" />
             </View>
           )}
         />
       )}
+      <PanelChat context="Bundler" title="Ask AI about document bundling" />
       <Modal visible={showShare} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>

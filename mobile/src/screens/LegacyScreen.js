@@ -49,6 +49,7 @@ export default function LegacyScreen({ navigation }) {
           <Text style={styles.subtitle}>{t("page.legacy.subtitle")}</Text>
         </View>
       </View>
+      <SmartAddBar context="Legacy" onSaved={load} />
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Trusted Contacts</Text>
         {contacts.length === 0 ? (
@@ -74,6 +75,7 @@ export default function LegacyScreen({ navigation }) {
       <TouchableOpacity style={styles.fab} onPress={() => setShowAdd(true)}>
         <Ionicons name="add" size={28} color="#fff" />
       </TouchableOpacity>
+      <PanelChat context="Legacy" title="Ask AI about estate planning" />
       {showAdd && (
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>

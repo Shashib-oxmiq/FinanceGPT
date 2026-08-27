@@ -49,6 +49,7 @@ export default function RemindersScreen({ navigation }) {
           <Text style={styles.subtitle}>{t("page.reminders.subtitle")}</Text>
         </View>
       </View>
+      <SmartAddBar context="Reminders" onSaved={load} />
       {items.length === 0 ? (
         <View style={styles.empty}><Ionicons name="notifications-off" size={40} color={theme.muted} /><Text style={styles.emptyText}>No reminders yet.</Text></View>
       ) : (
@@ -66,6 +67,7 @@ export default function RemindersScreen({ navigation }) {
         />
       )}
       <TouchableOpacity style={styles.fab} onPress={() => { setForm(EMPTY); setShow(true); }}><Ionicons name="add" size={28} color="#fff" /></TouchableOpacity>
+      <PanelChat context="Reminders" title="Ask AI about your tasks" />
       <Modal visible={show} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>

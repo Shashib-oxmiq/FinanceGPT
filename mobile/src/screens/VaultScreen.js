@@ -68,6 +68,7 @@ export default function VaultScreen({ navigation }) {
           <Text style={styles.subtitle}>{t("page.vault.subtitle")}</Text>
         </View>
       </View>
+      <SmartAddBar context="Vault" onSaved={load} />
       <View style={styles.chips}>
         {CATEGORIES.map((c) => (
           <TouchableOpacity key={c} style={[styles.chip, category === c && styles.chipActive]} onPress={() => setCategory(c)}>
@@ -92,6 +93,7 @@ export default function VaultScreen({ navigation }) {
         />
       )}
       <TouchableOpacity style={styles.fab} onPress={pick}><Ionicons name="add" size={28} color="#fff" /></TouchableOpacity>
+      <PanelChat context="Vault" title="Ask AI about your documents" />
     </View>
   );
 }
