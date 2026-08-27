@@ -5,6 +5,7 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Animated, ScrollView, Alert, Linking } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
 import { api } from "../services/api";
@@ -83,6 +84,14 @@ export default function ChatScreen({ navigation }) {
   }, [user]);
 
   useEffect(() => { loadConvos(); }, [loadConvos]);
+
+  // ── Reload conversations when returning to Chat screen from other screens ──
+  // This ensures PanelChat conversations created on other screens appear here
+  useFocusEffect(
+    useCallback(() => {
+      loadConvos();
+    }, [loadConvos])
+  );
 
   // ── Daily Briefing ──
   useEffect(() => {
