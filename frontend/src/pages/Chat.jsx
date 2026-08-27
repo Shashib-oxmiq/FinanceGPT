@@ -155,6 +155,13 @@ export default function Chat() {
   };
 
   useEffect(() => { loadConvos(); /* eslint-disable-next-line */ }, []);
+  // Reload conversations when Chat page becomes visible (user returns from other pages)
+  useEffect(() => {
+    const handler = () => loadConvos();
+    window.addEventListener("focus", handler);
+    document.addEventListener("visibilitychange", handler);
+    return () => { window.removeEventListener("focus", handler); document.removeEventListener("visibilitychange", handler); };
+  }, []);
   useEffect(() => { scrollRef.current?.scrollTo({ top: 9e9, behavior: "smooth" }); }, [messages]);
 
   const selectConvo = async (id) => {

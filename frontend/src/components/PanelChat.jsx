@@ -43,9 +43,20 @@ export default function PanelChat({ contextLabel, systemHint, storageKey }) {
     // Build a one-off conversation — include prior messages for context
     const history = messages.slice(-10).map((m) => ({ role: m.role, content: m.content }));
 
+    // ── Save conversation to backend DB so it appears in the Chat page ──
+    let convId = null;
     try {
       const token = localStorage.getItem("vault_token");
-      const systemPrompt = `You are the AI assistant inside the "${contextLabel}" panel of the Everkin app. ${systemHint}\n\nCurrent conversation history:\n${history.map((m) => `${m.role}: ${m.content}`).join("\n")}\n\nRespond concisely and helpfully. Current language: ${getAILangName(lang)}.`;
+      const convRes = await api.post("/chat/conversations", { title: `[${contextLabel}] ${text.slice(0, 40)}` });
+      convId = convRes.data?.conversation_id;
+      if (convId) {
+        await api.post(`/chat/conversations/${convId}/messages`, { role: "user", content: text });
+      }
+    } catch (e) { console.warn("PanelChat: save conversation failed:", e.message); }
+
+    try {
+      const token = localStorage.getItem("vault_token");
+      const systemPrompt = `You are the AI assistant inside the "${contextLabel}" panel of the Everkin app. ${systemHint}\n\nCurrent conversation history:\n${history.map((m) => `${m.role}: ${m.content}`).join("\n")}\n\nThe user is currently viewing the ${contextLabel} page. Respond concisely and helpfully with reference to their actual financial data if available. Current language: ${getAILangName(lang)}.`;
 
       const res = await fetch(`${API}/chat/panel`, {
         method: "POST",
@@ -91,6 +102,10 @@ export default function PanelChat({ contextLabel, systemHint, storageKey }) {
           copy[copy.length - 1] = { ...copy[copy.length - 1], content: "Sorry — I couldn't process that. Please try again." };
           return copy;
         });
+      }
+      // Save assistant response to DB so it appears in the Chat page
+      if (convId && full) {
+        try { await api.post(`/chat/conversations/${convId}/messages`, { role: "assistant", content: full }); } catch (e) { console.warn("PanelChat: save assistant msg failed:", e.message); }
       }
     } catch (e) {
       setMessages((m) => {
