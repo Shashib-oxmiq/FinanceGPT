@@ -132,8 +132,8 @@
 | F-078 | Duplicate alert on upload | active | active | active | |
 | F-079 | AI document classification | active | missing | missing | Backend classifies via AI |
 | F-080 | Document metadata extraction | active | missing | missing | |
-| F-081 | SmartAddBar | active | missing | missing | |
-| F-082 | PanelChat | active | missing | missing | |
+| F-081 | SmartAddBar | active | active | active | Fixed 2026-08-27 |
+| F-082 | PanelChat | active | active | active | Fixed 2026-08-27 |
 
 ## F-FORM · Forms & Document Preparation
 
@@ -187,7 +187,7 @@
 | F-113 | Net worth display | active | active | active | |
 | F-114 | Recent activity | active | missing | missing | |
 | F-115 | SmartAddBar | active | active | active | |
-| F-116 | PanelChat | active | missing | missing | |
+| F-116 | PanelChat | active | active | active | Fixed 2026-08-27 (was already rendered) |
 
 ## F-REM · Reminders
 
@@ -199,7 +199,7 @@
 | F-120 | Completion toggle | active | active | active | |
 | F-121 | Category tagging | active | missing | missing | |
 | F-122 | SmartAddBar | active | active | active | |
-| F-123 | PanelChat | active | missing | missing | |
+| F-123 | PanelChat | active | active | active | Fixed 2026-08-27 |
 
 ## F-INSIGHT · Insights
 
@@ -208,8 +208,8 @@
 | F-124 | Portfolio ROI | active | active | active | |
 | F-125 | Allocation breakdown | active | active | active | |
 | F-126 | Statement analysis | active | missing | missing | /insights/statement |
-| F-127 | SmartAddBar | active | missing | missing | |
-| F-128 | PanelChat | active | missing | missing | |
+| F-127 | SmartAddBar | active | active | active | Fixed 2026-08-27 |
+| F-128 | PanelChat | active | active | active | Fixed 2026-08-27 |
 
 ## F-LIFE · Life Events
 
@@ -218,8 +218,8 @@
 | F-129 | 8 life event types | active | active | active | |
 | F-130 | Event tracking | active | active | active | |
 | F-131 | Event guide/checklist | active | missing | missing | /life-events/guide |
-| F-132 | SmartAddBar | active | missing | missing | |
-| F-133 | PanelChat | active | missing | missing | |
+| F-132 | SmartAddBar | active | active | active | Fixed 2026-08-27 |
+| F-133 | PanelChat | active | active | active | Fixed 2026-08-27 |
 
 ## F-LEGACY · Legacy & Estate
 
@@ -228,8 +228,8 @@
 | F-134 | Trusted contacts CRUD | active | active | active | |
 | F-135 | Access levels (view/admin) | active | active | active | |
 | F-136 | Secure shares management | active | active | active | |
-| F-137%137 | SmartAddBar | active | missing | missing | |
-| F-138 | PanelChat | active | missing | missing | |
+| F-137 | SmartAddBar | active | active | active | Fixed 2026-08-27 |
+| F-138 | PanelChat | active | active | active | Fixed 2026-08-27 |
 
 ## F-GMAIL · Gmail Integration
 
@@ -237,8 +237,8 @@
 |7-----------|---------|---------|--------|--------|-------|
 | F-139 | IMAP app password connection | active | partial | partial | Mobile: stub, needs remote backend |
 | F-140 | Email scanning for financial docs | active | missing | missing | |
-| F-141 | SmartAddBar | active | missing | missing | |
-| F-142 | PanelChat | active | missing | missing | |
+| F-141 | SmartAddBar | active | active | active | Fixed 2026-08-27 |
+| F-142 | PanelChat | active | active | active | Fixed 2026-08-27 |
 
 ## F-SYNC · Cloud Sync
 
@@ -257,7 +257,7 @@
 | F-148 | Bundle history | active | active | active | |
 | F-149 | AI bundle suggestion | active | missing | missing | /bundle/suggest |
 | F-150 | SmartAddBar | active | active | active | |
-| F-151 | PanelChat | active | missing | missing | |
+| F-151 | PanelChat | active | active | active | Fixed 2026-08-27 (moved outside FlatList) |
 
 ## F-FORMFILL · Form Filler
 
@@ -268,7 +268,7 @@
 | F-154 | Saved form copies | active | active | active | |
 | F-155 | Checklist download | active | active | active | |
 | F-156 | SmartAddBar | active | active | active | |
-| F-157 | PanelChat | active | missing | missing | |
+| F-157 | PanelChat | active | active | active | Fixed 2026-08-27 (added to list view) |
 
 ## F-PROFILE · Profile
 
@@ -320,10 +320,10 @@
 | Metric | Count |
 |--------|-------|
 | Total features registered | 180 |
-| Active on both platforms | 95 |
+| Active on both platforms | 107 |
 | Desktop-only (active) | 38 |
 | Mobile-only (active) | 12 |
-| Missing on mobile | 52 |
+| Missing on mobile | 40 |
 | Missing on desktop | 8 |
 | Partial | 4 |
 | Deprecated | 0 |
@@ -343,13 +343,16 @@
 11. **F-011** Dark/light theme toggle
 12. **F-037** Google OAuth login
 13. **F-043** French translations (and 8 other manual languages)
-14. **F-116** PanelChat on Dashboard
-15. **F-123** PanelChat on Reminders
-16. **F-128** PanelChat on Insights
-17. **F-133** PanelChat on Life Events
-18. **F-138** PanelChat on Legacy
-19. **F-142** PanelChat on Gmail
-20. **F-151** PanelChat on Bundler
+14. **F-064** Investment meta (types list from backend)
+15. **F-079** AI document classification
+16. **F-080** Document metadata extraction
+17. **F-109** Portfolio news
+18. **F-110** Market search
+19. **F-114** Recent activity on dashboard
+20. **F-121** Category tagging on reminders
+21. **F-131** Life event guide/checklist
+22. **F-149** AI bundle suggestion
+23. **F-159** Profile completeness score
 
 ---
 
@@ -364,6 +367,15 @@
 | 2026-08-27 | F-165: Back buttons added to all stack screens | LivAgent |
 | 2026-08-27 | F-160: Profile language grid replaced with dropdown | LivAgent |
 | 2026-08-27 | F-172: AI proxy endpoint added for CORS bypass | LivAgent |
+| 2026-08-27 | F-081/F-082: SmartAddBar+PanelChat added to VaultScreen | LivAgent |
+| 2026-08-27 | F-122/F-123: SmartAddBar+PanelChat added to RemindersScreen | LivAgent |
+| 2026-08-27 | F-127/F-128: SmartAddBar+PanelChat added to InsightsScreen | LivAgent |
+| 2026-08-27 | F-132/F-133: SmartAddBar+PanelChat added to LifeEventsScreen | LivAgent |
+| 2026-08-27 | F-137/F-138: SmartAddBar+PanelChat added to LegacyScreen | LivAgent |
+| 2026-08-27 | F-141/F-142: SmartAddBar+PanelChat added to GmailScreen | LivAgent |
+| 2026-08-27 | F-151: PanelChat moved outside FlatList on BundlerScreen | LivAgent |
+| 2026-08-27 | F-157: PanelChat added to FormFiller list view | LivAgent |
+| 2026-08-27 | F-116: PanelChat confirmed already rendered on DashboardScreen | LivAgent |
 
 ---
 
