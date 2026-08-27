@@ -82,9 +82,9 @@ const DEDUCTION_SECTIONS = {
   },
   '80D': {
     name: '80D',
-    limit: 25000,
+    limit: 100000, // 25K self + 25K/50K parents (senior) + 5K preventive checkup
     regimes: ['old'],
-    description: 'Health insurance premium (self/family) + Rs.5,000 preventive checkup; up to Rs.25K/Rs.50K extra for parents (senior)',
+    description: 'Health insurance premium: Rs.25K self/family + Rs.5K preventive checkup; Rs.25K parents (or Rs.50K if senior citizen). Max total Rs.1,00,000.',
     category: 'Health',
   },
   '80CCD(1)': {
@@ -184,6 +184,63 @@ const DEDUCTION_SECTIONS = {
     regimes: ['old'],
     description: 'Leave travel concession - twice in a block of 4 calendar years (block 2022-25)',
     category: 'Travel',
+  },
+  // ── Additional sections for comprehensive coverage ──
+  '80CCC': {
+    name: '80CCC',
+    limit: 150000,
+    regimes: ['old'],
+    description: 'Pension fund contribution (LIC/insurer annuity plans) - shares overall 1.5L limit with 80C + 80CCD(1)',
+    category: 'Pension',
+  },
+  '80CCD(2)': {
+    name: '80CCD(2)',
+    limit: Infinity, // 14% of (Basic + DA) for all employers FY 2025-26
+    regimes: ['old', 'new'], // available in BOTH regimes
+    description: 'Employer NPS contribution - 14% of (Basic + DA) for all employers, no overall cap. Available in both regimes.',
+    category: 'Pension',
+  },
+  '80GG': {
+    name: '80GG',
+    limit: 60000, // Rs.5,000/month = Rs.60K/year
+    regimes: ['old'],
+    description: 'Rent paid without HRA - least of: Rs.5,000/month, 25% of adjusted total income, or rent minus 10% of adjusted total income. For salaried without HRA component or self-employed.',
+    category: 'Housing',
+  },
+  '80GGA': {
+    name: '80GGA',
+    limit: Infinity,
+    regimes: ['old'],
+    description: 'Donations for scientific research or rural development - 100% deduction. Cash donations up to Rs.2,000 only. Not for business/profession income earners.',
+    category: 'Charity',
+  },
+  '80GGC': {
+    name: '80GGC',
+    limit: Infinity,
+    regimes: ['old'],
+    description: 'Contribution to political parties or electoral trust - 100% deduction. No cash contributions allowed.',
+    category: 'Political',
+  },
+  '80JJAA': {
+    name: '80JJAA',
+    limit: Infinity, // 30% of additional wages for 3 years per new employee
+    regimes: ['old', 'new'], // available in BOTH regimes
+    description: 'Additional employee cost deduction - 30% of additional wages for new employees earning up to Rs.25K/month, for 3 years. Available in both regimes.',
+    category: 'Business',
+  },
+  '80QQB': {
+    name: '80QQB',
+    limit: 300000,
+    regimes: ['old'],
+    description: 'Royalty income from books - least of Rs.3,00,000 or royalty income. For Indian citizen authors.',
+    category: 'Income',
+  },
+  '80RRB': {
+    name: '80RRB',
+    limit: 300000,
+    regimes: ['old'],
+    description: 'Royalty on patents - least of Rs.3,00,000 or royalty income. For Indian citizen patent holders.',
+    category: 'Income',
   },
 };
 
@@ -691,9 +748,9 @@ function getTaxSavingSuggestions(gross = 0, deductions = {}, opts = {}) {
 
   suggestions.push({
     title: 'Section 80D - health insurance',
-    detail: 'Up to Rs.25,000 deduction for self/family + extra for parents; includes Rs.5,000 preventive checkup.',
+    detail: 'Up to Rs.25,000 for self/family + Rs.5,000 preventive checkup; additional Rs.25K for parents (Rs.50K if senior citizen). Max total Rs.1,00,000.',
     section: '80D',
-    limit: 25000,
+    limit: 100000,
     regimes: ['old'],
     savings: null,
   });
@@ -703,6 +760,126 @@ function getTaxSavingSuggestions(gross = 0, deductions = {}, opts = {}) {
     detail: 'Claim HRA (metro 50% / non-metro 40% of basic) and LTA twice per 4-year block.',
     section: 'HRA/LTA',
     regimes: ['old'],
+    savings: null,
+  });
+
+  // ── Comprehensive additional sections ──
+  suggestions.push({
+    title: 'Section 80GG - rent without HRA',
+    detail: 'If you pay rent but do NOT receive HRA from employer: least of Rs.5,000/month, 25% of adjusted total income, or rent minus 10% of adjusted total income. Max Rs.60K/year.',
+    section: '80GG',
+    limit: 60000,
+    regimes: ['old'],
+    savings: null,
+  });
+
+  suggestions.push({
+    title: 'Section 80CCC - pension fund',
+    detail: 'Contribution to pension/annuity plans from insurers (LIC etc). Shares overall Rs.1.5L limit with 80C + 80CCD(1).',
+    section: '80CCC',
+    limit: 150000,
+    regimes: ['old'],
+    savings: null,
+  });
+
+  suggestions.push({
+    title: 'Section 80CCD(2) - employer NPS',
+    detail: 'Employer NPS contribution up to 14% of (Basic + DA) is deductible in BOTH regimes. This is ON TOP of 80C and 80CCD(1B). Ask your employer to contribute to NPS instead of adding to PF.',
+    section: '80CCD(2)',
+    regimes: ['old', 'new'],
+    savings: null,
+  });
+
+  suggestions.push({
+    title: 'Section 80TTA / 80TTB - savings interest',
+    detail: '80TTA: Rs.10,000 savings account interest (non-senior). 80TTB: Rs.50,000 for senior citizens (includes FD interest).',
+    section: '80TTA/80TTB',
+    regimes: ['old'],
+    savings: null,
+  });
+
+  suggestions.push({
+    title: 'Section 80G - donations',
+    detail: 'Donations to approved charities: 50% or 100% deduction. PM Relief Fund = 100%. Cash donations limited to Rs.2,000.',
+    section: '80G',
+    regimes: ['old'],
+    savings: null,
+  });
+
+  suggestions.push({
+    title: 'Section 80GGA - scientific research donations',
+    detail: '100% deduction for donations to scientific research or rural development. Not for business/profession income earners.',
+    section: '80GGA',
+    regimes: ['old'],
+    savings: null,
+  });
+
+  suggestions.push({
+    title: 'Section 80GGC - political party contribution',
+    detail: '100% deduction for contributions to registered political parties or electoral trust. No cash contributions allowed.',
+    section: '80GGC',
+    regimes: ['old'],
+    savings: null,
+  });
+
+  suggestions.push({
+    title: 'Section 80DD - dependent disability',
+    detail: 'Rs.75,000 for dependent with 40-80% disability, Rs.1,25,000 for 80%+ severe disability. Includes cost of maintenance, nursing, rehabilitation.',
+    section: '80DD',
+    limit: 125000,
+    regimes: ['old'],
+    savings: null,
+  });
+
+  suggestions.push({
+    title: 'Section 80DDB - medical treatment',
+    detail: 'Rs.40,000 (below 60) or Rs.1,00,000 (60+) for treatment of specified diseases (cancer, AIDS, neurological disorders). For self or dependent.',
+    section: '80DDB',
+    limit: 100000,
+    regimes: ['old'],
+    savings: null,
+  });
+
+  suggestions.push({
+    title: 'Section 80U - self disability',
+    detail: 'Rs.75,000 (40-80% disability) or Rs.1,25,000 (80%+ severe). Flat deduction, no proof needed beyond disability certificate.',
+    section: '80U',
+    limit: 125000,
+    regimes: ['old'],
+    savings: null,
+  });
+
+  suggestions.push({
+    title: 'Section 80E - education loan interest',
+    detail: 'Full interest on education loan deductible with NO upper limit, up to 8 years. For self, spouse, or children. Principal not deductible.',
+    section: '80E',
+    regimes: ['old'],
+    savings: null,
+  });
+
+  suggestions.push({
+    title: 'Section 80QQB - author royalty',
+    detail: 'Royalty income from publishing books: least of Rs.3,00,000 or actual royalty income. For Indian citizen authors.',
+    section: '80QQB',
+    limit: 300000,
+    regimes: ['old'],
+    savings: null,
+  });
+
+  suggestions.push({
+    title: 'Section 80RRB - patent royalty',
+    detail: 'Royalty on patents registered in India: least of Rs.3,00,000 or royalty income. For Indian citizen patent holders.',
+    section: '80RRB',
+    limit: 300000,
+    regimes: ['old'],
+    savings: null,
+  });
+
+  suggestions.push({
+    title: 'Section 80JJAA - new employees',
+    detail: 'If you run a business and hire new employees earning up to Rs.25K/month: 30% of their additional wages deductible for 3 years. Available in BOTH regimes.',
+    section: '80JJAA',
+    regimes: ['old', 'new'],
     savings: null,
   });
 
