@@ -9,16 +9,13 @@ import { api } from "./api";
 import { FORMS_DATA, DOC_TEMPLATES } from "./formsData";
 
 const BASE_URL = CONFIG.AI_BASE_URL;
+const BACKEND_URL = CONFIG.BACKEND_URL;
 let apiKey = null;
 
-// On web, Yolo-Auto has CORS restrictions. Route through a CORS proxy.
+// On web, Yolo-Auto has CORS restrictions. Route through the FastAPI backend
+// proxy endpoint (port 8000) which calls Yolo-Auto server-side.
 // On native (iOS/Android), no CORS — direct fetch works.
-const CORS_PROXY = "https://corsproxy.io/?url=";
-function aiUrl() {
-  const url = `${BASE_URL}/chat/completions`;
-  if (Platform.OS === "web") return `${CORS_PROXY}${encodeURIComponent(url)}`;
-  return url;
-}
+function isWeb() { return Platform.OS === "web"; }
 
 export function setApiKey(key) { apiKey = key; }
 export function getApiKey() { return apiKey || CONFIG.AI_API_KEY; }
@@ -27,7 +24,25 @@ export function getApiKey() { return apiKey || CONFIG.AI_API_KEY; }
 export async function complete(systemPrompt, userMessage, model) {
   const key = getApiKey();
   if (!key) throw new Error("AI API key not set");
-  const response = await fetch(aiUrl(), {
+
+  // Web: route through FastAPI backend proxy (bypasses CORS)
+  if (isWeb()) {
+    const res = await fetch(`${BACKEND_URL}/api/mobile/ai/complete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        system_prompt: systemPrompt,
+        user_message: userMessage,
+        model: "yolo",
+      }),
+    });
+    if (!res.ok) { const err = await res.text(); throw new Error(`AI proxy error: ${res.status} ${err}`); }
+    const data = await res.json();
+    return data.content || "";
+  }
+
+  // Native: direct Yolo-Auto call
+  const response = await fetch(`${BASE_URL}/chat/completions`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${key}` },
     body: JSON.stringify({
@@ -49,7 +64,49 @@ export async function complete(systemPrompt, userMessage, model) {
 export async function streamChat(systemPrompt, userMessage, model, onToken) {
   const key = getApiKey();
   if (!key) throw new Error("AI API key not set");
-  const response = await fetch(aiUrl(), {
+
+  // Web: route through FastAPI backend proxy (SSE streaming, bypasses CORS)
+  if (isWeb()) {
+    const res = await fetch(`${BACKEND_URL}/api/mobile/ai/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        system_prompt: systemPrompt,
+        user_message: userMessage,
+        model: "yolo",
+        stream: true,
+      }),
+    });
+    if (!res.ok) { const err = await res.text(); throw new Error(`AI proxy error: ${res.status} ${err}`); }
+
+    // Parse SSE stream from backend
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let fullText = "";
+    let buffer = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith("data: ")) continue;
+        try {
+          const evt = JSON.parse(trimmed.slice(6));
+          if (evt.delta) { fullText += evt.delta; if (onToken) onToken(evt.delta); }
+          if (evt.error) throw new Error(evt.error);
+        } catch (e) {
+          if (e.message && !e.message.includes("JSON")) throw e;
+        }
+      }
+    }
+    return fullText;
+  }
+
+  // Native: direct Yolo-Auto streaming
+  const response = await fetch(`${BASE_URL}/chat/completions`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${key}` },
     body: JSON.stringify({

@@ -8,7 +8,7 @@ export const CONFIG = {
   BACKEND_MODE: 'local',
 
   // Remote backend URL (used when BACKEND_MODE === 'remote' or for cloud sync)
-  BACKEND_URL: __DEV__ ? 'http://localhost:8000' : 'https://api.everkin.com',
+  BACKEND_URL: 'http://127.0.0.1:8000',
 
   // Yolo-Auto AI
   AI_BASE_URL: 'https://yolo-auto.com/v1',

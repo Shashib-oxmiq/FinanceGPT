@@ -681,6 +681,65 @@ async def panel_chat(body: PanelChatBody, user: dict = Depends(get_current_user)
     )
 
 
+# ── Mobile AI proxy (bypasses CORS for web testing) ──────────────────────────
+class MobileAIBody(BaseModel):
+    system_prompt: str
+    user_message: str
+    model: str = "yolo"
+    stream: bool = True
+
+
+@router.post("/mobile/ai/chat")
+async def mobile_ai_chat(body: MobileAIBody):
+    """Proxy AI calls for the mobile app (web mode). No auth required —
+    the mobile app manages its own auth locally via SQLite."""
+    text = (body.user_message or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="No message provided")
+
+    system = body.system_prompt or "You are a helpful AI assistant."
+    chat = ai.make_chat(f"mobile_{uuid.uuid4().hex}", system, body.model or "yolo")
+    user_message = UserMessage(text=text)
+
+    async def event_gen():
+        try:
+            async for token in ai.stream_message(chat, user_message):
+                yield f"data: {json.dumps({'delta': token})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+        yield f"data: {json.dumps({'done': True})}\n\n"
+
+    return StreamingResponse(
+        event_gen(), media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+# ── Mobile AI proxy (non-streaming, for SmartAddBar) ─────────────────────────
+class MobileAICompleteBody(BaseModel):
+    system_prompt: str
+    user_message: str
+    model: str = "yolo"
+
+
+@router.post("/mobile/ai/complete")
+async def mobile_ai_complete(body: MobileAICompleteBody):
+    """Non-streaming AI completion proxy for the mobile app."""
+    text = (body.user_message or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="No message provided")
+
+    system = body.system_prompt or "You are a helpful AI assistant."
+    chat = ai.make_chat(f"mobile_c_{uuid.uuid4().hex}", system, body.model or "yolo")
+    user_message = UserMessage(text=text)
+
+    try:
+        result = await ai.complete(chat, text)
+        return {"content": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ---------------- Documents ----------------
 async def classify_document(data: bytes, filename: str, content_type: str):
     """Use Gemini to classify a document and extract key metadata. Best-effort."""
