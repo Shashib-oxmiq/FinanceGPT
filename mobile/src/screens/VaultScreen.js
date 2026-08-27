@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from "react-native";
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, TextInput } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { pickDocument } from "../services/platform";
 import { shareDocument } from "../services/docGen";
+import { searchVaultDocs } from "../services/ocrSearch";
 import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
 import { api } from "../services/api";
@@ -18,6 +19,8 @@ export default function VaultScreen({ navigation }) {
   const [items, setItems] = useState([]);
   const [category, setCategory] = useState("All");
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState(null);
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -56,6 +59,15 @@ export default function VaultScreen({ navigation }) {
 
   const filtered = category === "All" ? items : items.filter((d) => d.category === category);
 
+  const handleSearch = async (q) => {
+    setSearchQuery(q);
+    if (q.trim().length < 2) { setSearchResults(null); return; }
+    try { setSearchResults(await searchVaultDocs(user.user_id, q.trim())); }
+    catch (e) { console.warn(e); }
+  };
+
+  const displayItems = searchResults || filtered;
+
   if (loading) return <View style={styles.center}><ActivityIndicator size="large" color={theme.primary} /></View>;
 
   return (
@@ -70,6 +82,14 @@ export default function VaultScreen({ navigation }) {
         </View>
       </View>
       <SmartAddBar context="Vault" onSaved={load} />
+      <View style={{ paddingHorizontal: 16, marginBottom: 8 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: theme.card, borderRadius: 10, paddingHorizontal: 10, borderWidth: 1, borderColor: theme.border }}>
+          <Ionicons name="search" size={16} color={theme.muted} />
+          <TextInput style={{ flex: 1, paddingVertical: 8, paddingHorizontal: 8, fontSize: 14, color: theme.text }} placeholder="Search inside documents..." placeholderTextColor={theme.muted} value={searchQuery} onChangeText={handleSearch} />
+          {searchQuery.length > 0 && (<TouchableOpacity onPress={() => { setSearchQuery(""); setSearchResults(null); }}><Ionicons name="close-circle" size={16} color={theme.muted} /></TouchableOpacity>)}
+        </View>
+        {searchResults && searchResults.length > 0 && (<Text style={{ fontSize: 11, color: theme.muted, marginTop: 4 }}>{searchResults.length} results found</Text>)}
+      </View>
       <View style={styles.chips}>
         {CATEGORIES.map((c) => (
           <TouchableOpacity key={c} style={[styles.chip, category === c && styles.chipActive]} onPress={() => setCategory(c)}>
@@ -77,10 +97,10 @@ export default function VaultScreen({ navigation }) {
           </TouchableOpacity>
         ))}
       </View>
-      {filtered.length === 0 ? (
+      {displayItems.length === 0 ? (
         <View style={styles.empty}><Ionicons name="folder" size={40} color={theme.muted} /><Text style={styles.emptyText}>No documents yet. Tap + to upload.</Text></View>
       ) : (
-        <FlatList data={filtered} keyExtractor={(x) => x.document_id} contentContainerStyle={{ paddingBottom: 80 }}
+        <FlatList data={displayItems} keyExtractor={(x) => x.document_id} contentContainerStyle={{ paddingBottom: 80 }}
           renderItem={({ item }) => (
             <View style={styles.card}>
               <Ionicons name="document" size={20} color={theme.primary} />

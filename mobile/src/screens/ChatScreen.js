@@ -322,6 +322,73 @@ export default function ChatScreen({ navigation }) {
         } catch (e) { console.warn(e); }
       }
 
+      // ── Detect [LOAN_ADD:...] ──
+      const loanAddMatches = [...fullText.matchAll(/\[LOAN_ADD:(\{[^}]+\})\]/g)];
+      for (const m of loanAddMatches) {
+        try {
+          const { createLoan } = require("../services/loans");
+          await createLoan(user.user_id, JSON.parse(m[1]));
+          cleanText = cleanText.replace(m[0], "");
+          showToast("Loan added");
+        } catch (e) { console.warn(e); }
+      }
+
+      // ── Detect [BILL_ADD:...] ──
+      const billAddMatches = [...fullText.matchAll(/\[BILL_ADD:(\{[^}]+\})\]/g)];
+      for (const m of billAddMatches) {
+        try {
+          const { createBill } = require("../services/bills");
+          await createBill(user.user_id, JSON.parse(m[1]));
+          cleanText = cleanText.replace(m[0], "");
+          showToast("Bill added");
+        } catch (e) { console.warn(e); }
+      }
+
+      // ── Detect [EDU_ADD:...] ──
+      const eduAddMatches = [...fullText.matchAll(/\[EDU_ADD:(\{[^}]+\})\]/g)];
+      for (const m of eduAddMatches) {
+        try {
+          const { createEducationPlan } = require("../services/education");
+          await createEducationPlan(user.user_id, JSON.parse(m[1]));
+          cleanText = cleanText.replace(m[0], "");
+          showToast("Education plan created");
+        } catch (e) { console.warn(e); }
+      }
+
+      // ── Detect [RETIREMENT_ADD:...] ──
+      const retireAddMatches = [...fullText.matchAll(/\[RETIREMENT_ADD:(\{[^}]+\})\]/g)];
+      for (const m of retireAddMatches) {
+        try {
+          const { addCorpusSource } = require("../services/retirement");
+          await addCorpusSource(user.user_id, JSON.parse(m[1]));
+          cleanText = cleanText.replace(m[0], "");
+          showToast("Retirement source added");
+        } catch (e) { console.warn(e); }
+      }
+
+      // ── Detect [TAX_CALC:...] ──
+      const taxCalcMatches = [...fullText.matchAll(/\[TAX_CALC:(\{[^}]+\})\]/g)];
+      for (const m of taxCalcMatches) {
+        try {
+          const { calculateTax, compareRegimes } = require("../services/tax");
+          const data = JSON.parse(m[1]);
+          const comparison = compareRegimes(data.income || 0, data.deductions || {});
+          cleanText = cleanText.replace(m[0], "");
+          showToast(`Tax: Old ₹${comparison.old.totalTax} vs New ₹${comparison.new.totalTax}`);
+        } catch (e) { console.warn(e); }
+      }
+
+      // ── Detect [PROP_ADD:...] ──
+      const propAddMatches = [...fullText.matchAll(/\[PROP_ADD:(\{[^}]+\})\]/g)];
+      for (const m of propAddMatches) {
+        try {
+          const { createProperty } = require("../services/property");
+          await createProperty(user.user_id, JSON.parse(m[1]));
+          cleanText = cleanText.replace(m[0], "");
+          showToast("Property added");
+        } catch (e) { console.warn(e); }
+      }
+
       // Update the assistant message with cleaned text
       setMessages((m) => m.map((msg) =>
         msg.message_id === assistantId ? { ...msg, content: cleanText } : msg

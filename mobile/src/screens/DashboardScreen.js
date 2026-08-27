@@ -5,6 +5,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
 import { api } from "../services/api";
 import { computeHealthScore, getScoreColor, getScoreLabel } from "../services/healthScore";
+import { recordWeeklySnapshot, getTrendDirection } from "../services/healthScoreTrend";
 import { getGoals, getGoalProgress } from "../services/goals";
 import SmartAddBar from "../components/SmartAddBar";
 import PanelChat from "../components/PanelChat";
@@ -31,6 +32,7 @@ export default function DashboardScreen({ navigation }) {
       setInvestments(inv);
       const hs = await computeHealthScore(user.user_id);
       setHealthScore(hs);
+      try { await recordWeeklySnapshot(user.user_id, hs.score, hs.categories); const trend = await getTrendDirection(user.user_id); if (trend) setHealthScore({ ...hs, trend }); } catch (e) { console.warn(e); }
       const g = await getGoals(user.user_id);
       setGoals(g);
     } catch (e) { console.error(e); }
@@ -81,6 +83,12 @@ export default function DashboardScreen({ navigation }) {
             <View>
               <Text style={styles.healthTitle}>Financial Health</Text>
               <Text style={styles.healthSub}>{getScoreLabel(healthScore.score)}</Text>
+              {healthScore.trend && (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 }}>
+                  <Ionicons name={healthScore.trend.direction === "improving" ? "trending-up" : healthScore.trend.direction === "declining" ? "trending-down" : "remove"} size={12} color={healthScore.trend.direction === "improving" ? "#10b981" : healthScore.trend.direction === "declining" ? "#ef4444" : theme.muted} />
+                  <Text style={{ fontSize: 11, color: theme.muted }}>{healthScore.trend.direction === "improving" ? "Improving" : healthScore.trend.direction === "declining" ? "Declining" : "Stable"}{healthScore.trend.delta ? ` (${healthScore.trend.delta > 0 ? "+" : ""}${healthScore.trend.delta} pts)` : ""}</Text>
+                </View>
+              )}
             </View>
             <View style={[styles.healthScore, { borderColor: getScoreColor(healthScore.score) }]}>
               <Text style={[styles.healthScoreText, { color: getScoreColor(healthScore.score) }]}>{healthScore.score}</Text>

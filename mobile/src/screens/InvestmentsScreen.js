@@ -7,6 +7,7 @@ import { api } from "../services/api";
 import SmartAddBar from "../components/SmartAddBar";
 import PanelChat from "../components/PanelChat";
 import { theme, formatMoney } from "../theme";
+import { analyzeAllocation } from "../services/rebalancing";
 
 const CUR_SYM = { USD: "$", INR: "₹", EUR: "€", GBP: "£", JPY: "¥", AUD: "A$", CAD: "C$" };
 const TYPE_LABEL = (t) => (t || "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -25,6 +26,7 @@ export default function InvestmentsScreen({ navigation }) {
   const [editId, setEditId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [rebalanceData, setRebalanceData] = useState(null);
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -33,6 +35,7 @@ export default function InvestmentsScreen({ navigation }) {
       setItems(data);
       const s = await api.getInvestmentSummary(user.user_id);
       setSummary(s);
+      try { setRebalanceData(await analyzeAllocation(data)); } catch (e) { console.warn(e); }
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   }, [user]);
@@ -212,6 +215,28 @@ export default function InvestmentsScreen({ navigation }) {
               {(displaySummary.roi_pct ?? 0).toFixed(1)}%
             </Text>
           </View>
+        </View>
+      )}
+
+      {/* Rebalancing suggestions */}
+      {rebalanceData && rebalanceData.suggestions.length > 0 && (
+        <View style={{ marginHorizontal: 16, marginBottom: 12, backgroundColor: theme.card, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: theme.border }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+            <Ionicons name="swap-horizontal" size={18} color="#8b5cf6" />
+            <Text style={{ fontSize: 15, fontWeight: "700", color: theme.text }}>Rebalancing Suggestions</Text>
+          </View>
+          {rebalanceData.suggestions.slice(0, 3).map((s, i) => (
+            <View key={i} style={{ flexDirection: "row", alignItems: "flex-start", gap: 6, marginBottom: 6 }}>
+              <Ionicons name="chevron-forward" size={12} color={theme.muted} style={{ marginTop: 2 }} />
+              <Text style={{ fontSize: 13, color: theme.textSecondary, flex: 1, lineHeight: 18 }}>{s}</Text>
+            </View>
+          ))}
+          {rebalanceData.concentrationRisk && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: theme.border }}>
+              <Ionicons name="warning" size={12} color="#f59e0b" />
+              <Text style={{ fontSize: 12, color: "#f59e0b", fontWeight: "600" }}>Concentration risk detected</Text>
+            </View>
+          )}
         </View>
       )}
 

@@ -7,6 +7,7 @@ import { api } from "../services/api";
 import SmartAddBar from "../components/SmartAddBar";
 import PanelChat from "../components/PanelChat";
 import { theme, formatMoney } from "../theme";
+import { getPremiumCalendar } from "../services/premiumCalendar";
 
 const EMPTY = { policy_type: "", provider: "", policy_number: "", sum_assured: "", premium_amount: "", premium_frequency: "annual", start_date: "", maturity_date: "", nominee: "", notes: "" };
 
@@ -17,10 +18,11 @@ export default function InsuranceScreen() {
   const [show, setShow] = useState(false);
   const [form, setForm] = useState(EMPTY);
   const [loading, setLoading] = useState(true);
+  const [premiumCal, setPremiumCal] = useState(null);
 
   const load = useCallback(async () => {
     if (!user) return;
-    try { const data = await api.getInsurance(user.user_id); setItems(data); }
+    try { const data = await api.getInsurance(user.user_id); setItems(data); try { setPremiumCal(await getPremiumCalendar(user.user_id)); } catch (e) { console.warn(e); } }
     catch (e) { console.error(e); }
     finally { setLoading(false); }
   }, [user]);
@@ -45,6 +47,26 @@ export default function InsuranceScreen() {
         <Text style={styles.subtitle}>{t("page.insurance.subtitle")}</Text>
       </View>
       <SmartAddBar context="Insurance" onSaved={load} />
+      {premiumCal && premiumCal.upcoming.length > 0 && (
+        <View style={{ marginHorizontal: 16, marginTop: 12, marginBottom: 12, backgroundColor: theme.card, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: theme.border }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+            <Ionicons name="calendar" size={18} color={theme.primary} />
+            <Text style={{ fontSize: 15, fontWeight: "700", color: theme.text }}>Upcoming Premiums</Text>
+          </View>
+          {premiumCal.upcoming.slice(0, 5).map((p, i) => (
+            <View key={i} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 6, borderBottomWidth: i < Math.min(4, premiumCal.upcoming.length - 1) ? 1 : 0, borderBottomColor: theme.border }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13, color: theme.text, fontWeight: "600" }}>{p.policy_type}</Text>
+                <Text style={{ fontSize: 11, color: theme.muted }}>{p.provider}</Text>
+              </View>
+              <View style={{ alignItems: "flex-end" }}>
+                <Text style={{ fontSize: 13, color: theme.text, fontWeight: "600" }}>{formatMoney(p.premium_amount)}</Text>
+                <Text style={{ fontSize: 11, color: p.daysUntil <= 7 ? "#ef4444" : p.daysUntil <= 30 ? "#f59e0b" : theme.muted }}>{p.daysUntil <= 0 ? "Overdue" : `in ${p.daysUntil} days`}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
       {items.length === 0 ? (
         <View style={styles.empty}><Ionicons name="shield-checkmark" size={40} color={theme.muted} /><Text style={styles.emptyText}>No policies yet. Add your first one!</Text></View>
       ) : (
