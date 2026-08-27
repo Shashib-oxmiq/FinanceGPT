@@ -65,14 +65,24 @@ class WebDB {
     const t = this._ensureTable(table);
 
     if (/^INSERT/i.test(sql)) {
-      // Extract column names and values — handles both INSERT INTO and INSERT OR REPLACE INTO
-      const colMatch = sql.match(/INSERT (?:OR REPLACE )?INTO \w+ \(([^)]+)\) VALUES \(([^)]+)\)/);
+      // Extract column names only (not VALUES — datetime('now') breaks the old regex)
+      const colMatch = sql.match(/INSERT (?:OR REPLACE )?INTO \w+ \(([^)]+)\)/);
       if (colMatch) {
-        const cols = colMatch[1].split(", ").map((c) => c.trim());
+        const cols = colMatch[1].split(",").map((c) => c.trim());
         const idCol = cols.find((c) => c.endsWith("_id") || c === "user_id") || cols[0];
         const idVal = params[cols.indexOf(idCol)];
+        if (idVal === undefined) { return { changes: 0 }; }
         t[idVal] = {};
-        cols.forEach((col, i) => { t[idVal][col] = params[i]; });
+        cols.forEach((col, i) => {
+          if (i < params.length) {
+            t[idVal][col] = params[i];
+          } else {
+            // SQL literal like datetime('now') — use current timestamp
+            if (col === "created_at" || col === "updated_at" || col === "date") {
+              t[idVal][col] = new Date().toISOString();
+            }
+          }
+        });
         this._saveToStorage();
         return { changes: 1 };
       }
@@ -179,19 +189,26 @@ class WebDB {
     const t = this._ensureTable(table);
     let rows = Object.values(t).map((r) => ({ ...r }));
 
-    // WHERE user_id = ?
-    const whereMatch = sql.match(/WHERE (\w+) = \?/);
-    if (whereMatch && params.length > 0) {
-      const [, wCol] = whereMatch;
-      rows = rows.filter((r) => String(r[wCol]) === String(params[0]));
-    }
+    // WHERE col1 = ? AND col2 = ? (two-param WHERE — check BEFORE single)
+    const whereTwoMatch = sql.match(/WHERE (\w+) = \? AND (\w+) = \?/);
+    if (whereTwoMatch && params.length >= 2) {
+      const [, wCol1, wCol2] = whereTwoMatch;
+      rows = rows.filter((r) => String(r[wCol1]) === String(params[0]) && String(r[wCol2]) === String(params[1]));
+    } else {
+      // WHERE user_id = ?
+      const whereMatch = sql.match(/WHERE (\w+) = \?/);
+      if (whereMatch && params.length > 0) {
+        const [, wCol] = whereMatch;
+        rows = rows.filter((r) => String(r[wCol]) === String(params[0]));
+      }
 
-    // WHERE user_id = ? AND ... LIKE ?
-    const likeMatch = sql.match(/WHERE (\w+) = \? AND (\w+) LIKE \?/);
-    if (likeMatch && params.length >= 2) {
-      const [, wCol1, wCol2] = likeMatch;
-      const likeVal = (params[1] || "").replace(/%/g, "");
-      rows = rows.filter((r) => String(r[wCol1]) === String(params[0]) && String(r[wCol2] || "").toLowerCase().includes(likeVal.toLowerCase()));
+      // WHERE user_id = ? AND ... LIKE ?
+      const likeMatch = sql.match(/WHERE (\w+) = \? AND (\w+) LIKE \?/);
+      if (likeMatch && params.length >= 2) {
+        const [, wCol1, wCol2] = likeMatch;
+        const likeVal = (params[1] || "").replace(/%/g, "");
+        rows = rows.filter((r) => String(r[wCol1]) === String(params[0]) && String(r[wCol2] || "").toLowerCase().includes(likeVal.toLowerCase()));
+      }
     }
 
     // ORDER BY
@@ -206,9 +223,15 @@ class WebDB {
       });
     }
 
-    // LIMIT
-    const limitMatch = sql.match(/LIMIT (\d+)/);
-    if (limitMatch) rows = rows.slice(0, parseInt(limitMatch[1]));
+    // LIMIT — handle both LIMIT ? (placeholder) and LIMIT N (literal)
+    if (/LIMIT \?/.test(sql) && params.length > 0) {
+      // The LIMIT param is the last param in the array
+      const limitVal = params[params.length - 1];
+      if (limitVal) rows = rows.slice(0, parseInt(limitVal));
+    } else {
+      const limitMatch = sql.match(/LIMIT (\d+)/);
+      if (limitMatch) rows = rows.slice(0, parseInt(limitMatch[1]));
+    }
 
     return rows;
   }
