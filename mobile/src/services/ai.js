@@ -666,6 +666,17 @@ export async function buildSystemPrompt(user, history, langCode) {
     `- Mermaid diagrams: use semicolons between statements, keep under 10 nodes.\n` +
     `=== END VISUALIZATIONS ===\n\n` +
 
+    // ═══ WEB SEARCH ═══
+    `=== WEB SEARCH (REAL-TIME INFORMATION) ===\n` +
+    `When the user asks about current/real-time information (stock prices, tax rules, government schemes, ` +
+    `interest rates, news, market data), include a web search marker in your response:\n` +
+    `[WEB_SEARCH:{"query":"latest income tax slabs India 2025","results":[{"title":"...","snippet":"...","url":"..."}]}]\n\n` +
+    `The app will render search results as cards with source links. ALWAYS cite sources.\n` +
+    `Use web search when the user asks about: latest prices, current rates, recent news, tax rule changes, ` +
+    `new government schemes, market trends, regulatory updates, or anything that changes over time.\n` +
+    `Do NOT use web search for: the user's own portfolio data, their personal finances, or general knowledge.\n` +
+    `=== END WEB SEARCH ===\n\n` +
+
     // ═══ USER FINANCIAL PROFILE — ALL DATA ═══
     `=== USER FINANCIAL PROFILE (REAL DATA — USE THIS, DON'T ASK THE USER) ===\n` +
     (investments.length > 0 ? `INVESTMENTS:\n${invList}\n\n` : "") +

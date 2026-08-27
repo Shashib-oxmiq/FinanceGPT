@@ -15,7 +15,7 @@
 //   [CALLOUT:{"type":"warning","title":"Deadline approaching","text":"ITR due in 30 days"}]
 
 import React, { useMemo } from "react";
-import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, Platform } from "react-native";
+import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, Platform, Linking } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "../theme";
 
@@ -23,7 +23,7 @@ import { theme } from "../theme";
 // The AI generates markers like [CHART:{"type":"bar","data":[...]}] where the
 // JSON payload itself contains ] characters. A simple regex can't handle this,
 // so we scan for [TYPE: and then find the matching closing ] by tracking bracket depth.
-const MARKER_TYPES = ["CHART", "MERMAID", "TABLE", "STAT", "PROGRESS", "COMPARE", "TIMELINE", "CALLOUT"];
+const MARKER_TYPES = ["CHART", "MERMAID", "TABLE", "STAT", "PROGRESS", "COMPARE", "TIMELINE", "CALLOUT", "WEB_SEARCH", "WEB_RESULT"];
 
 function findMarkers(text) {
   const blocks = [];
@@ -492,6 +492,10 @@ export function renderVizBlock(block, key) {
       return <Timeline key={key} data={block.data} />;
     case "callout":
       return <Callout key={key} data={block.data} />;
+    case "web_search":
+      return <WebSearchResults key={key} data={block.data} />;
+    case "web_result":
+      return <WebSearchResults key={key} data={block.data} />;
     default:
       return <Text key={key} style={vizStyles.messageText}>{JSON.stringify(block)}</Text>;
   }
@@ -503,6 +507,34 @@ export function ChatVizMessage({ content, textStyle }) {
   return (
     <View>
       {blocks.map((block, i) => renderVizBlock(block, `viz_${i}`))}
+    </View>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WEB SEARCH RESULTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function WebSearchResults({ data }) {
+  const results = data.results || data.data || [];
+  const query = data.query || "";
+  return (
+    <View style={vizStyles.webSearchCard}>
+      <View style={vizStyles.webSearchHeader}>
+        <Ionicons name="globe-outline" size={14} color={theme.primary} />
+        <Text style={vizStyles.webSearchTitle}>{query ? `Web Search: "${query}"` : "Web Results"}</Text>
+      </View>
+      {results.map((r, i) => (
+        <View key={i} style={vizStyles.webResultItem}>
+          <Text style={vizStyles.webResultTitle} numberOfLines={2}>{r.title}</Text>
+          {r.snippet ? <Text style={vizStyles.webResultSnippet} numberOfLines={3}>{r.snippet}</Text> : null}
+          {r.url ? (
+            <TouchableOpacity onPress={() => { try { Linking.openURL(r.url); } catch (e) {} }}>
+              <Text style={vizStyles.webResultUrl} numberOfLines={1}>{r.url}</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ))}
     </View>
   );
 }
@@ -611,4 +643,13 @@ const vizStyles = StyleSheet.create({
   calloutText: { fontSize: 12, color: theme.text, lineHeight: 17 },
 
   errorText: { fontSize: 11, color: theme.destructive },
+
+  // Web search results
+  webSearchCard: { backgroundColor: theme.card, borderRadius: 12, borderWidth: 1, borderColor: theme.border, padding: 12, marginVertical: 6 },
+  webSearchHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
+  webSearchTitle: { fontSize: 12, fontWeight: "700", color: theme.primary },
+  webResultItem: { paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: theme.border },
+  webResultTitle: { fontSize: 13, fontWeight: "600", color: theme.text, marginBottom: 4 },
+  webResultSnippet: { fontSize: 11, color: theme.muted, lineHeight: 16, marginBottom: 4 },
+  webResultUrl: { fontSize: 10, color: theme.primary, textDecorationLine: "underline" },
 });

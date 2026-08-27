@@ -1737,3 +1737,111 @@ async def dashboard_stats(user: dict = Depends(get_current_user)):
         "insight_count": insight_count,
         "recent_documents": recent_docs,
     }
+
+
+# ── Web Search proxy (for mobile + web app — avoids CORS) ──
+class WebSearchBody(BaseModel):
+    query: str
+    max_results: int = 5
+    safe_search: str = "moderate"
+
+
+@router.post("/web/search")
+async def web_search(body: WebSearchBody):
+    """Proxy web search requests. Uses DuckDuckGo Instant Answer API + HTML scrape fallback.
+    No API key required."""
+    import urllib.request
+    import urllib.parse
+    import html
+
+    query = body.query.strip()
+    if not query:
+        raise HTTPException(status_code=400, detail="No query provided")
+
+    results = []
+
+    # 1. Try DuckDuckGo Instant Answer API
+    try:
+        ddg_url = f"https://api.duckduckgo.com/?q={urllib.parse.quote(query)}&format=json&no_html=1&no_redirect=1&skip_disambig=1"
+        req = urllib.request.Request(ddg_url, headers={"User-Agent": "Everkin/1.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode())
+
+        if data.get("AbstractText"):
+            results.append({
+                "title": data.get("Heading", query),
+                "snippet": data["AbstractText"],
+                "url": data.get("AbstractURL", ""),
+                "source": data.get("AbstractSource", "DuckDuckGo"),
+            })
+
+        for topic in (data.get("RelatedTopics") or [])[:body.max_results - len(results)]:
+            if isinstance(topic, dict) and topic.get("Text") and topic.get("FirstURL"):
+                results.append({
+                    "title": topic["Text"].split(" - ")[0][:120],
+                    "snippet": topic["Text"],
+                    "url": topic["FirstURL"],
+                    "source": "DuckDuckGo",
+                })
+    except Exception as e:
+        print(f"DDG search error: {e}")
+
+    # 2. If DDG didn't return enough, try DuckDuckGo HTML scrape
+    if len(results) < body.max_results:
+        try:
+            html_url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"
+            req = urllib.request.Request(html_url, headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                raw = resp.read().decode("utf-8", errors="replace")
+
+            # Parse result links and snippets from HTML
+            import re as _re
+            link_pattern = _re.compile(r'<a[^>]+class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>', _re.DOTALL)
+            snippet_pattern = _re.compile(r'<a[^>]+class="result__snippet"[^>]*>(.*?)</a>', _re.DOTALL)
+
+            links = link_pattern.findall(raw)
+            snippets = snippet_pattern.findall(raw)
+
+            for i, (url, title) in enumerate(links):
+                if len(results) >= body.max_results:
+                    break
+                # Clean URL (DuckDuckGo wraps in redirect)
+                if "uddg=" in url:
+                    from urllib.parse import parse_qs, urlparse
+                    parsed = urlparse(url)
+                    qs = parse_qs(parsed.query)
+                    url = qs.get("uddg", [url])[0]
+
+                title_clean = _re.sub(r"<[^>]+>", "", title).strip()
+                snippet_clean = _re.sub(r"<[^>]+>", "", snippets[i]).strip() if i < len(snippets) else ""
+                snippet_clean = html.unescape(snippet_clean)
+
+                if title_clean:
+                    results.append({
+                        "title": html.unescape(title_clean),
+                        "snippet": snippet_clean[:300],
+                        "url": url,
+                        "source": "DuckDuckGo",
+                    })
+        except Exception as e:
+            print(f"DDG HTML scrape error: {e}")
+
+    # 3. If still no results, try Wikipedia API
+    if not results:
+        try:
+            wiki_url = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={urllib.parse.quote(query)}&format=json&srlimit={body.max_results}"
+            req = urllib.request.Request(wiki_url, headers={"User-Agent": "Everkin/1.0"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode())
+
+            for item in data.get("query", {}).get("search", []):
+                results.append({
+                    "title": item.get("title", ""),
+                    "snippet": _re.sub(r"<[^>]+>", "", item.get("snippet", ""))[:300],
+                    "url": f"https://en.wikipedia.org/wiki/{urllib.parse.quote(item.get('title', ''))}",
+                    "source": "Wikipedia",
+                })
+        except Exception as e:
+            print(f"Wikipedia search error: {e}")
+
+    return {"query": query, "results": results[:body.max_results]}
