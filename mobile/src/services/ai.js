@@ -18,6 +18,7 @@ import { getExpenses } from "./expenses";
 import { getAllMemories } from "./aiMemory";
 import { checkEmergencyStatus } from "./emergencyService";
 import { computeHealthScore } from "./healthScore";
+import { getProjectedTax, getUpcomingTaxEvents, getAdvanceTaxStatus, compareRegimes, calculateTax } from "./tax";
 
 const BASE_URL = CONFIG.AI_BASE_URL;
 const BACKEND_URL = CONFIG.BACKEND_URL;
@@ -163,6 +164,7 @@ export async function buildSystemPrompt(user, history, langCode) {
   let retirement = [], educationPlans = [], expenses = [], aiMemories = [];
   let healthScore = null, emergencyStatus = null, financialProfile = null;
   let familyMembers = [], contacts = [];
+  let taxProfile = null, taxEvents = [], advanceTax = null;
 
   try {
     if (user?.user_id) {
@@ -185,6 +187,15 @@ export async function buildSystemPrompt(user, history, langCode) {
       try { healthScore = await computeHealthScore(uid); } catch (e) { console.warn("AI: health score failed:", e.message); }
       try { emergencyStatus = await checkEmergencyStatus(uid); } catch (e) { console.warn("AI: emergency status failed:", e.message); }
       try { financialProfile = await buildFinancialProfile(uid); } catch (e) { console.warn("AI: profile build failed:", e.message); }
+
+      // Load tax data
+      try { taxProfile = await getProjectedTax(uid); } catch (e) { console.warn("AI: tax profile failed:", e.message); }
+      try { taxEvents = getUpcomingTaxEvents(uid, 3); } catch (e) { console.warn("AI: tax events failed:", e.message); }
+      try {
+        if (taxProfile?.projectedTax > 0) {
+          advanceTax = getAdvanceTaxStatus(taxProfile.projectedTax, taxProfile.tdsAlreadyPaid || 0);
+        }
+      } catch (e) { console.warn("AI: advance tax failed:", e.message); }
 
       // Load family + contacts via dbAll
       try {
@@ -635,6 +646,9 @@ export async function buildSystemPrompt(user, history, langCode) {
     (healthScore ? `HEALTH SCORE: ${healthScore.score}/100 (${healthScore.label || ""})\n\n` : "") +
     (emergencyStatus && emergencyStatus.enabled ? `EMERGENCY ACCESS: Enabled, phase=${emergencyStatus.phase}, inactive_days=${emergencyStatus.inactiveDays || 0}\n\n` : "") +
     (financialProfile ? `COMPOSITE PROFILE:\n${formatProfileForPrompt(financialProfile)}\n\n` : "") +
+    (taxProfile ? `TAX (FY 2025-26):\n  Estimated income: ${taxProfile.estimatedIncome || "N/A"}\n  Projected tax: ${taxProfile.projectedTax || 0} (regime: ${taxProfile.bestRegime || "new"})\n  TDS paid: ${taxProfile.tdsAlreadyPaid || 0}\n  ${taxProfile.projectedRefund > 0 ? `Expected refund: ${taxProfile.projectedRefund}\n  ` : ""}Advance tax remaining: ${taxProfile.advanceTaxRemaining || 0}\n` : "") +
+    (taxEvents.length > 0 ? `TAX CALENDAR (next 3):\n${taxEvents.map(e => `  - ${e.label || e.title} (${e.daysUntil !== undefined ? e.daysUntil + " days" : "N/A"})${e.urgency === "overdue" ? " [OVERDUE]" : ""}`).join("\n")}\n\n` : "") +
+    (advanceTax ? `ADVANCE TAX: Next due ${advanceTax.label}, amount ${advanceTax.nextDueAmount}, ${advanceTax.daysUntil} days${advanceTax.isOverdue ? " [OVERDUE]" : ""}\n\n` : "") +
     `=== END USER FINANCIAL PROFILE ===\n\n` +
 
     // ═══ LANGUAGE ═══

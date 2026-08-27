@@ -5,6 +5,7 @@
 
 import { api } from "./api";
 import { getDocumentExpiries } from "./docExpiry";
+import { getUpcomingTaxEvents, getAdvanceTaxStatus, getProjectedTax } from "./tax";
 
 // ── Generate smart reminders from user data ──
 export async function generateSmartReminders(userId) {
@@ -58,26 +59,49 @@ export async function generateSmartReminders(userId) {
     }
   } catch (e) { /* non-fatal */ }
 
-  // 3. Tax filing deadline
-  const now = new Date();
-  const july31 = new Date(now.getFullYear(), 6, 31);
-  const dec31 = new Date(now.getFullYear(), 11, 31);
-  const nextTaxDeadline = now > july31 ? july31 : (now > new Date(now.getFullYear(), 6, 31) ? dec31 : july31);
-  const taxDaysLeft = Math.ceil((nextTaxDeadline - now) / (1000 * 60 * 60 * 24));
-  if (taxDaysLeft > 0 && taxDaysLeft <= 90) {
-    smart.push({
-      id: `tax_${now.getFullYear()}`,
-      type: "tax_deadline",
-      title: `File ITR before July 31`,
-      due_date: nextTaxDeadline.toISOString().split("T")[0],
-      priority: taxDaysLeft <= 30 ? "high" : "medium",
-      category: "tax",
-      notes: "File your Income Tax Return. Ask AI for help choosing the right ITR form.",
-      daysLeft: taxDaysLeft,
-      icon: "receipt",
-      color: taxDaysLeft <= 30 ? "#ef4444" : "#f59e0b",
-    });
-  }
+  // 3. Year-round tax calendar (advance tax, ITR, 80C deadline, etc.)
+  try {
+    const taxEvents = getUpcomingTaxEvents(userId, 6);
+    for (const ev of taxEvents) {
+      const daysLeft = ev.daysUntil !== undefined ? ev.daysUntil : 999;
+      if (daysLeft <= 60 || ev.urgency === "overdue") {
+        smart.push({
+          id: `tax_cal_${ev.label || ev.title}`.replace(/\s+/g, "_").substring(0, 40),
+          type: "tax_calendar",
+          title: ev.label || ev.title,
+          due_date: ev.date || `${ev.month}/${ev.day}`,
+          priority: ev.urgency === "overdue" ? "high" : daysLeft <= 15 ? "high" : "medium",
+          category: "tax",
+          notes: ev.note || (ev.urgency === "overdue" ? "This deadline has passed — take action if not done." : "Tax planning deadline approaching. Ask AI for help."),
+          daysLeft: daysLeft < 0 ? 0 : daysLeft,
+          icon: "calculator",
+          color: ev.urgency === "overdue" ? "#ef4444" : daysLeft <= 15 ? "#ef4444" : "#f59e0b",
+        });
+      }
+    }
+  } catch (e) { /* non-fatal */ }
+
+  // 3b. Advance tax reminder (if projected tax > 10K and payment due soon)
+  try {
+    const proj = await getProjectedTax(userId);
+    if (proj?.projectedTax > 10000) {
+      const at = getAdvanceTaxStatus(proj.projectedTax, proj.tdsAlreadyPaid || 0);
+      if (at.daysUntil <= 30 || at.isOverdue) {
+        smart.push({
+          id: `tax_advance_${at.label}`.replace(/\s+/g, "_").substring(0, 40),
+          type: "tax_advance",
+          title: `Pay advance tax: ${at.label}`,
+          due_date: at.nextDueDate,
+          priority: at.isOverdue ? "high" : at.daysUntil <= 7 ? "high" : "medium",
+          category: "tax",
+          notes: `Pay Rs.${at.nextDueAmount.toLocaleString('en-IN')} (${at.percentage}% of estimated annual tax). Total paid so far: Rs.${(proj.tdsAlreadyPaid || 0).toLocaleString('en-IN')}`,
+          daysLeft: at.daysUntil < 0 ? 0 : at.daysUntil,
+          icon: "cash",
+          color: at.isOverdue ? "#ef4444" : "#f59e0b",
+        });
+      }
+    }
+  } catch (e) { /* non-fatal */ }
 
   // 4. Goal contribution reminders
   try {
