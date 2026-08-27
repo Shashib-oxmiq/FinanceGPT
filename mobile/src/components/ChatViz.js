@@ -15,7 +15,7 @@
 //   [CALLOUT:{"type":"warning","title":"Deadline approaching","text":"ITR due in 30 days"}]
 
 import React, { useMemo, useState } from "react";
-import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, Platform, Linking } from "react-native";
+import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, Platform, Linking, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "../theme";
 
@@ -309,9 +309,10 @@ function MermaidDiagram({ content }) {
     }
   }, [content]);
 
-  const url = b64 ? `https://mermaid.ink/img/${b64}?type=png&bgColor=white` : null;
+  const url = b64 ? `https://mermaid.ink/img/${b64}?type=png&bgColor=white&width=1200` : null;
 
   const [imgState, setImgState] = useState("loading"); // loading | loaded | error
+  const [imgLayout, setImgLayout] = useState({ w: 0, h: 0 });
 
   if (!url) return <Text style={vizStyles.errorText}>Mermaid diagram error</Text>;
 
@@ -322,21 +323,35 @@ function MermaidDiagram({ content }) {
         <Text style={vizStyles.mermaidLabel}>Diagram</Text>
       </View>
       {imgState === "loading" && (
-        <View style={[vizStyles.mermaidImg, { justifyContent: "center", alignItems: "center" }]}>
-          <Text style={vizStyles.errorText}>Rendering diagram...</Text>
+        <View style={[vizStyles.mermaidImgPlaceholder]}>
+          <ActivityIndicator size="small" color={theme.muted} />
+          <Text style={[vizStyles.errorText, { marginTop: 6 }]}>Rendering diagram...</Text>
         </View>
       )}
       {imgState === "error" && (
-        <View style={[vizStyles.mermaidImg, { justifyContent: "center", alignItems: "center", padding: 12 }]}>
+        <View style={vizStyles.mermaidImgPlaceholder}>
           <Text style={vizStyles.errorText}>Could not load diagram. Mermaid source:</Text>
           <Text style={[vizStyles.errorText, { marginTop: 4, fontFamily: "monospace", fontSize: 10 }]}>{content.substring(0, 200)}</Text>
         </View>
       )}
       <Image
         source={{ uri: url }}
-        style={[vizStyles.mermaidImg, imgState !== "loaded" ? { position: "absolute", opacity: 0 } : {}]}
+        style={[
+          vizStyles.mermaidImg,
+          { width: "100%", height: imgState === "loaded" ? Math.max(280, imgLayout.w * 0.6) : 280 },
+          imgState !== "loaded" ? { position: "absolute", opacity: 0 } : {},
+        ]}
         resizeMode="contain"
-        onLoad={() => setImgState("loaded")}
+        onLayout={(e) => setImgLayout({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
+        onLoad={(e) => {
+          // Use natural image dimensions to set a proper aspect-ratio height
+          try {
+            const nat = e.nativeEvent.source;
+            const ratio = (nat?.height || 600) / (nat?.width || 1200);
+            const containerW = imgLayout.w || 320;
+            setImgState("loaded");
+          } catch (_) { setImgState("loaded"); }
+        }}
         onError={() => setImgState("error")}
       />
     </View>
@@ -649,7 +664,8 @@ const vizStyles = StyleSheet.create({
   mermaidCard: { backgroundColor: theme.card, borderRadius: 12, borderWidth: 1, borderColor: theme.border, padding: 8, marginVertical: 6 },
   mermaidHeader: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 6 },
   mermaidLabel: { fontSize: 11, fontWeight: "600", color: theme.primary },
-  mermaidImg: { width: "100%", height: 200, borderRadius: 8 },
+  mermaidImgPlaceholder: { height: 280, justifyContent: "center", alignItems: "center", borderRadius: 8, backgroundColor: theme.background },
+  mermaidImg: { width: "100%", minHeight: 280, borderRadius: 8, backgroundColor: theme.background },
 
   // Table
   tableCard: { backgroundColor: theme.card, borderRadius: 12, borderWidth: 1, borderColor: theme.border, padding: 10, marginVertical: 6 },

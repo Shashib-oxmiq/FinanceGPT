@@ -504,9 +504,8 @@ export default function ChatScreen({ navigation }) {
             <Text style={styles.briefingLabel}>Today's Briefing</Text>
           </View>
           <Text style={styles.briefingText}>{item.content}</Text>
-          <TouchableOpacity style={styles.speakBtn} onPress={() => speak(item.content, lang)}>
-            <Ionicons name="volume-medium" size={14} color={theme.muted} />
-            <Text style={styles.speakBtnText}>Listen</Text>
+          <TouchableOpacity style={styles.speakBtn} onPress={() => speak(item.content, lang)} activeOpacity={0.6}>
+            <Ionicons name="volume-low" size={12} color={theme.muted} />
           </TouchableOpacity>
         </View>
       );
@@ -533,10 +532,9 @@ export default function ChatScreen({ navigation }) {
           ) : (
             <Text style={styles.msgUserText}>{item.content}</Text>
           )}
-          {item.role === "assistant" && item.content && (
-            <TouchableOpacity style={styles.speakBtn} onPress={() => speak(item.content, lang)}>
-              <Ionicons name="volume-medium" size={14} color={theme.muted} />
-              <Text style={styles.speakBtnText}>Listen</Text>
+          {item.role === "assistant" && item.content && !streaming && (
+            <TouchableOpacity style={styles.speakBtn} onPress={() => speak(item.content, lang)} activeOpacity={0.6}>
+              <Ionicons name="volume-low" size={12} color={theme.muted} />
             </TouchableOpacity>
           )}
         </View>
@@ -856,7 +854,7 @@ const styles = StyleSheet.create({
   msgAvatar: { width: 24, height: 24, borderRadius: 8, backgroundColor: theme.primary + "15", justifyContent: "center", alignItems: "center", alignSelf: "flex-start" },
   msgAssistantText: { flex: 1, color: theme.text, fontSize: 14, lineHeight: 20 },
   msgDocWrap: { alignSelf: "stretch", marginVertical: 4 },
-  speakBtn: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 8, alignSelf: "flex-start" },
+  speakBtn: { marginTop: 4, padding: 4, borderRadius: 6, alignSelf: "flex-start", opacity: 0.5 },
   speakBtnText: { fontSize: 11, color: theme.muted, fontWeight: "500" },
   // Briefing
   briefingCard: { marginHorizontal: 12, marginVertical: 8, backgroundColor: theme.accent + "10", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: theme.accent + "40" },
