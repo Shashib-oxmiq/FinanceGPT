@@ -4,10 +4,12 @@ import React from "react";
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useLanguage } from "../contexts/LanguageContext";
+import { useAuth } from "../contexts/AuthContext";
 import { theme } from "../theme";
 
 export default function LandingScreen({ navigation }) {
   const { t } = useLanguage();
+  const { loginAsDemo } = useAuth();
 
   const features = [
     { icon: "chatbubbles", title: "AI Advisor", desc: "Chat with your personal AI for money, insurance, and life decisions" },
@@ -32,6 +34,10 @@ export default function LandingScreen({ navigation }) {
             <Text style={styles.secondaryBtnText}>Sign In</Text>
           </TouchableOpacity>
         </View>
+        <TouchableOpacity style={styles.demoBtn} onPress={loginAsDemo}>
+          <Ionicons name="sparkles" size={16} color={theme.accent} />
+          <Text style={styles.demoBtnText}>Try Demo Account (Pre-loaded Data)</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.featuresSection}>
@@ -79,4 +85,6 @@ const styles = StyleSheet.create({
   bottomTitle: { fontSize: 20, fontWeight: "800", color: theme.text, marginBottom: 16 },
   ctaBtn: { backgroundColor: theme.primary, borderRadius: 14, paddingVertical: 16, paddingHorizontal: 36, alignItems: "center" },
   ctaText: { color: "#fff", fontSize: 17, fontWeight: "700" },
+  demoBtn: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 16, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1, borderColor: theme.accent + "40", backgroundColor: theme.accent + "10" },
+  demoBtnText: { fontSize: 14, color: theme.accent, fontWeight: "600" },
 });

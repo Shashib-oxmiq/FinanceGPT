@@ -4,6 +4,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { SecureStoreShim } from "../services/platform";
 import { initDB, dbInsert, dbGet, uuid } from "../services/db";
+import { seedDemoData } from "../services/demoSeed";
 
 const AuthContext = createContext(null);
 
@@ -93,6 +94,29 @@ export function AuthProvider({ children }) {
     setToken(t);
   };
 
+  const loginAsDemo = async () => {
+    // Create demo user with seeded financial data across all tables
+    const userId = "demo-user-001";
+    const d = await initDB();
+    // Delete existing demo user if any, then create fresh
+    await d.runAsync("DELETE FROM users WHERE user_id = ?", [userId]).catch(() => {});
+    const userData = {
+      user_id: userId,
+      email: "demo@everkin.app",
+      name: "Raj Sharma",
+      password_hash: btoa("demo123"),
+      profile: JSON.stringify({ income: 1200000, occupation: "Software Engineering Manager", location: "Gurugram", family: "Spouse + 1 child" }),
+    };
+    await dbInsert("users", userData);
+    // Seed all financial data
+    await seedDemoData(userId);
+    const t = uuid();
+    await SecureStoreShim.setItemAsync("auth_token", t);
+    await SecureStoreShim.setItemAsync("user_id", userId);
+    setUser({ ...userData, profile: JSON.parse(userData.profile) });
+    setToken(t);
+  };
+
   const updateProfile = async (updates) => {
     if (!user) return;
     const newProfile = { ...user.profile, ...updates };
@@ -112,7 +136,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, token, login, register, loginAsGuest, updateProfile, logout }}>
+    <AuthContext.Provider value={{ user, loading, token, login, register, loginAsGuest, loginAsDemo, updateProfile, logout }}>
       {children}
     </AuthContext.Provider>
   );

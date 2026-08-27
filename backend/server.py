@@ -40,6 +40,7 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_origin_regex=r"http://127\.0\.0\.1:\d+|http://localhost:\d+",
 )
 
 

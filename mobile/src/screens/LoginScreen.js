@@ -6,7 +6,7 @@ import { theme } from "../theme";
 
 export default function LoginScreen({ navigation }) {
   const { t } = useLanguage();
-  const { login, loginAsGuest } = useAuth();
+  const { login, loginAsGuest, loginAsDemo } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -37,6 +37,9 @@ export default function LoginScreen({ navigation }) {
         </TouchableOpacity>
         <TouchableOpacity onPress={loginAsGuest} style={styles.guestBtn}>
           <Text style={styles.guestText}>Continue as Guest</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={async () => { setLoading(true); try { await loginAsDemo(); } catch(e) { setError(e.message); } finally { setLoading(false); } }} style={[styles.button, { backgroundColor: theme.accent, marginTop: 8 }]}>
+          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Try Demo Account (Pre-loaded Data)</Text>}
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>

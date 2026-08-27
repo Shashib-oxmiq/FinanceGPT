@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Modal, TextInput, ActivityIndicator } from "react-native";
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Modal, TextInput, ActivityIndicator, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -22,8 +22,11 @@ export default function InsuranceScreen() {
 
   const load = useCallback(async () => {
     if (!user) return;
-    try { const data = await api.getInsurance(user.user_id); setItems(data); try { setPremiumCal(await getPremiumCalendar(user.user_id)); } catch (e) { console.warn(e); } }
-    catch (e) { console.error(e); }
+    try {
+      const data = await api.getInsurance(user.user_id);
+      setItems(Array.isArray(data) ? data : []);
+    } catch (e) { console.error("Insurance load error:", e); setItems([]); }
+    try { setPremiumCal(await getPremiumCalendar(user.user_id)); } catch (e) { console.warn("Premium cal error:", e); }
     finally { setLoading(false); }
   }, [user]);
 
@@ -41,60 +44,76 @@ export default function InsuranceScreen() {
   if (loading) return <View style={styles.center}><ActivityIndicator size="large" color={theme.primary} /></View>;
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
-        <Text style={styles.title}>{t("page.insurance.title")}</Text>
-        <Text style={styles.subtitle}>{t("page.insurance.subtitle")}</Text>
+        <Text style={styles.title}>Insurance</Text>
+        <Text style={styles.subtitle}>Protect what matters</Text>
       </View>
       <SmartAddBar context="Insurance" onSaved={load} />
-      {premiumCal && premiumCal.upcoming.length > 0 && (
-        <View style={{ marginHorizontal: 16, marginTop: 12, marginBottom: 12, backgroundColor: theme.card, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: theme.border }}>
+
+      {/* Upcoming Premiums */}
+      {premiumCal && premiumCal.upcoming && premiumCal.upcoming.length > 0 && (
+        <View style={styles.premiumCard}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
             <Ionicons name="calendar" size={18} color={theme.primary} />
-            <Text style={{ fontSize: 15, fontWeight: "700", color: theme.text }}>Upcoming Premiums</Text>
+            <Text style={styles.premiumTitle}>Upcoming Premiums</Text>
           </View>
           {premiumCal.upcoming.slice(0, 5).map((p, i) => (
-            <View key={i} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 6, borderBottomWidth: i < Math.min(4, premiumCal.upcoming.length - 1) ? 1 : 0, borderBottomColor: theme.border }}>
+            <View key={i} style={styles.premiumRow}>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 13, color: theme.text, fontWeight: "600" }}>{p.policy_type}</Text>
-                <Text style={{ fontSize: 11, color: theme.muted }}>{p.provider}</Text>
+                <Text style={styles.premiumType}>{p.policy_type}</Text>
+                <Text style={styles.premiumProvider}>{p.provider}</Text>
               </View>
               <View style={{ alignItems: "flex-end" }}>
-                <Text style={{ fontSize: 13, color: theme.text, fontWeight: "600" }}>{formatMoney(p.premium_amount)}</Text>
-                <Text style={{ fontSize: 11, color: p.daysUntil <= 7 ? "#ef4444" : p.daysUntil <= 30 ? "#f59e0b" : theme.muted }}>{p.daysUntil <= 0 ? "Overdue" : `in ${p.daysUntil} days`}</Text>
+                <Text style={styles.premiumAmt}>{formatMoney(p.premium_amount)}</Text>
+                <Text style={[styles.premiumDue, { color: p.daysUntil <= 7 ? "#ef4444" : p.daysUntil <= 30 ? "#f59e0b" : theme.muted }]}>
+                  {p.daysUntil <= 0 ? "Overdue" : `in ${p.daysUntil} days`}
+                </Text>
               </View>
             </View>
           ))}
         </View>
       )}
+
+      {/* Policies list */}
       {items.length === 0 ? (
-        <View style={styles.empty}><Ionicons name="shield-checkmark" size={40} color={theme.muted} /><Text style={styles.emptyText}>No policies yet. Add your first one!</Text></View>
+        <View style={styles.empty}>
+          <Ionicons name="shield-checkmark" size={40} color={theme.muted} />
+          <Text style={styles.emptyText}>No policies yet. Tap + to add your first one!</Text>
+        </View>
       ) : (
-        <FlatList data={items} keyExtractor={(x) => x.insurance_id} contentContainerStyle={{ paddingBottom: 80 }} ListFooterComponent={<PanelChat context="Insurance" />}
-          renderItem={({ item }) => (
-            <View style={styles.card}>
-              <View style={styles.cardHeader}>
-                <Ionicons name="shield" size={20} color={theme.primary} />
-                <Text style={styles.cardTitle}>{item.policy_type}</Text>
-                <TouchableOpacity onPress={() => del(item.insurance_id)}><Ionicons name="trash-outline" size={16} color={theme.destructive} /></TouchableOpacity>
-              </View>
-              <Text style={styles.cardProvider}>{item.provider}</Text>
-              <View style={styles.cardRow}>
-                <Text style={styles.cardLabel}>Sum Assured</Text>
-                <Text style={styles.cardValue}>{formatMoney(item.sum_assured)}</Text>
-              </View>
-              <View style={styles.cardRow}>
-                <Text style={styles.cardLabel}>Premium</Text>
-                <Text style={styles.cardValue}>{formatMoney(item.premium_amount)} / {item.premium_frequency}</Text>
-              </View>
-              {item.maturity_date ? <Text style={styles.cardMaturity}>Maturity: {item.maturity_date}</Text> : null}
+        items.map((item) => (
+          <View key={item.insurance_id} style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Ionicons name="shield" size={20} color={theme.primary} />
+              <Text style={styles.cardTitle}>{item.policy_type}</Text>
+              <TouchableOpacity onPress={() => del(item.insurance_id)}><Ionicons name="trash-outline" size={16} color={theme.destructive} /></TouchableOpacity>
             </View>
-          )}
-        />
+            <View style={styles.cardBody}>
+              <Text style={styles.cardLabel}>Provider</Text>
+              <Text style={styles.cardValue}>{item.provider || "—"}</Text>
+              <Text style={styles.cardLabel}>Sum Assured</Text>
+              <Text style={styles.cardValue}>{formatMoney(item.sum_assured)}</Text>
+              <Text style={styles.cardLabel}>Premium</Text>
+              <Text style={styles.cardValue}>{formatMoney(item.premium_amount)} / {item.premium_frequency}</Text>
+              {item.policy_number && <><Text style={styles.cardLabel}>Policy No</Text><Text style={styles.cardValue}>{item.policy_number}</Text></>}
+              {item.nominee && <><Text style={styles.cardLabel}>Nominee</Text><Text style={styles.cardValue}>{item.nominee}</Text></>}
+            </View>
+          </View>
+        ))
       )}
+
+      {/* FAB */}
       <TouchableOpacity style={styles.fab} onPress={() => { setForm(EMPTY); setShow(true); }}>
         <Ionicons name="add" size={28} color="#fff" />
       </TouchableOpacity>
+
+      {/* PanelChat — always visible */}
+      <View style={{ paddingBottom: 16 }}>
+        <PanelChat context="Insurance" title="Ask AI about insurance" />
+      </View>
+
+      {/* Add Modal */}
       <Modal visible={show} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -107,13 +126,13 @@ export default function InsuranceScreen() {
             <TextInput style={styles.input} placeholder="Maturity Date" placeholderTextColor={theme.muted} value={form.maturity_date} onChangeText={(v) => setForm({ ...form, maturity_date: v })} />
             <TextInput style={styles.input} placeholder="Nominee" placeholderTextColor={theme.muted} value={form.nominee} onChangeText={(v) => setForm({ ...form, nominee: v })} />
             <View style={styles.modalButtons}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShow(false)}><Text style={styles.cancelText}>{t("common.cancel")}</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.saveBtn} onPress={save}><Text style={styles.saveText}>{t("button.save")}</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShow(false)}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.saveBtn} onPress={save}><Text style={styles.saveText}>Save</Text></TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -123,24 +142,29 @@ const styles = StyleSheet.create({
   header: { padding: 20, paddingTop: 60 },
   title: { fontSize: 24, fontWeight: "800", color: theme.text },
   subtitle: { fontSize: 14, color: theme.muted, marginTop: 4 },
-  empty: { flex: 1, justifyContent: "center", alignItems: "center", paddingBottom: 100 },
-  emptyText: { color: theme.muted, fontSize: 14, marginTop: 12, textAlign: "center" },
-  card: { backgroundColor: theme.card, borderRadius: 16, padding: 16, marginHorizontal: 16, marginBottom: 12, borderWidth: 1, borderColor: theme.border },
-  cardHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
-  cardTitle: { flex: 1, fontSize: 16, fontWeight: "700", color: theme.text },
-  cardProvider: { fontSize: 13, color: theme.muted, marginBottom: 12 },
-  cardRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 4 },
-  cardLabel: { fontSize: 13, color: theme.muted },
-  cardValue: { fontSize: 13, fontWeight: "600", color: theme.text },
-  cardMaturity: { fontSize: 12, color: theme.muted, marginTop: 8 },
-  fab: { position: "absolute", bottom: 20, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: theme.primary, justifyContent: "center", alignItems: "center", elevation: 8, shadowColor: "#000", shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" },
-  modalContent: { backgroundColor: theme.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: "85%" },
-  modalTitle: { fontSize: 20, fontWeight: "700", color: theme.text, marginBottom: 16 },
-  input: { backgroundColor: theme.input, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: theme.text, marginBottom: 10, borderWidth: 1, borderColor: theme.border },
-  modalButtons: { flexDirection: "row", gap: 12, marginTop: 16 },
-  cancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: theme.border, alignItems: "center" },
-  cancelText: { color: theme.textSecondary, fontSize: 15, fontWeight: "600" },
-  saveBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: theme.primary, alignItems: "center" },
-  saveText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+  premiumCard: { marginHorizontal: 16, marginTop: 12, backgroundColor: theme.card, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: theme.border },
+  premiumTitle: { fontSize: 15, fontWeight: "700", color: theme.text },
+  premiumRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: theme.border },
+  premiumType: { fontSize: 13, color: theme.text, fontWeight: "600" },
+  premiumProvider: { fontSize: 11, color: theme.muted },
+  premiumAmt: { fontSize: 13, color: theme.text, fontWeight: "600" },
+  premiumDue: { fontSize: 11 },
+  empty: { alignItems: "center", paddingVertical: 60, paddingHorizontal: 32 },
+  emptyText: { fontSize: 14, color: theme.muted, marginTop: 12, textAlign: "center" },
+  card: { marginHorizontal: 16, marginBottom: 10, backgroundColor: theme.card, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: theme.border },
+  cardHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
+  cardTitle: { fontSize: 16, fontWeight: "700", color: theme.text, flex: 1 },
+  cardBody: {},
+  cardLabel: { fontSize: 11, color: theme.muted, marginTop: 8, textTransform: "uppercase" },
+  cardValue: { fontSize: 14, color: theme.text, fontWeight: "500" },
+  fab: { position: "absolute", bottom: 20, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: theme.primary, justifyContent: "center", alignItems: "center", elevation: 8, shadowColor: "#000", shadowOpacity: 0.3, shadowOffset: { width: 0, height: 2 }, shadowRadius: 4, zIndex: 10 },
+  modalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" },
+  modalContent: { backgroundColor: theme.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40 },
+  modalTitle: { fontSize: 20, fontWeight: "800", color: theme.text, marginBottom: 12 },
+  input: { backgroundColor: theme.background, borderRadius: 10, padding: 12, fontSize: 15, color: theme.text, marginBottom: 10, borderWidth: 1, borderColor: theme.border },
+  modalButtons: { flexDirection: "row", gap: 12, marginTop: 8 },
+  cancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: "center", borderWidth: 1, borderColor: theme.border },
+  cancelText: { fontSize: 16, color: theme.muted, fontWeight: "600" },
+  saveBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: "center", backgroundColor: theme.primary },
+  saveText: { fontSize: 16, color: "#fff", fontWeight: "700" },
 });
