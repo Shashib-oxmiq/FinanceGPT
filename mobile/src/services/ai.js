@@ -4,11 +4,21 @@
 //          find forms, check vault for missing docs, manage insurance/reminders
 
 import { CONFIG } from "../config";
+import { Platform } from "react-native";
 import { api } from "./api";
 import { FORMS_DATA, DOC_TEMPLATES } from "./formsData";
 
 const BASE_URL = CONFIG.AI_BASE_URL;
 let apiKey = null;
+
+// On web, Yolo-Auto has CORS restrictions. Route through a CORS proxy.
+// On native (iOS/Android), no CORS — direct fetch works.
+const CORS_PROXY = "https://corsproxy.io/?url=";
+function aiUrl() {
+  const url = `${BASE_URL}/chat/completions`;
+  if (Platform.OS === "web") return `${CORS_PROXY}${encodeURIComponent(url)}`;
+  return url;
+}
 
 export function setApiKey(key) { apiKey = key; }
 export function getApiKey() { return apiKey || CONFIG.AI_API_KEY; }
@@ -17,7 +27,7 @@ export function getApiKey() { return apiKey || CONFIG.AI_API_KEY; }
 export async function complete(systemPrompt, userMessage, model) {
   const key = getApiKey();
   if (!key) throw new Error("AI API key not set");
-  const response = await fetch(`${BASE_URL}/chat/completions`, {
+  const response = await fetch(aiUrl(), {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${key}` },
     body: JSON.stringify({
@@ -39,7 +49,7 @@ export async function complete(systemPrompt, userMessage, model) {
 export async function streamChat(systemPrompt, userMessage, model, onToken) {
   const key = getApiKey();
   if (!key) throw new Error("AI API key not set");
-  const response = await fetch(`${BASE_URL}/chat/completions`, {
+  const response = await fetch(aiUrl(), {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${key}` },
     body: JSON.stringify({

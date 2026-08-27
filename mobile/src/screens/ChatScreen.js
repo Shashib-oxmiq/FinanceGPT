@@ -42,8 +42,14 @@ export default function ChatScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
+  const [convDropdown, setConvDropdown] = useState(false);
   const [toast, setToast] = useState(null);
   const flatRef = useRef(null);
+  const activeIdRef = useRef(null);
+  activeIdRef.current = activeId;
+
+  // Active conversation object (for header title)
+  const activeConvo = conversations.find((c) => c.conversation_id === activeId);
 
   // ── Load AI key ──
   useEffect(() => {
@@ -59,7 +65,9 @@ export default function ChatScreen({ navigation }) {
     try {
       const convs = await api.getConversations(user.user_id);
       setConversations(convs);
-      if (convs.length > 0 && !activeId) {
+      // Only auto-select first conversation if we truly have none active
+      // Use ref to avoid stale closure
+      if (convs.length > 0 && !activeIdRef.current) {
         const cid = convs[0].conversation_id;
         setActiveId(cid);
         const msgs = await api.getMessages(cid, user.user_id);
@@ -373,11 +381,56 @@ export default function ChatScreen({ navigation }) {
           <TouchableOpacity onPress={() => setSidebarOpen(true)} style={styles.menuBtn}>
             <Ionicons name="menu" size={22} color={theme.text} />
           </TouchableOpacity>
-          <View style={styles.headerTitle}>
-            <Text style={styles.headerTitleText}>AI Advisor</Text>
-            <Text style={styles.headerSub}>Financial · Insurance · Legacy</Text>
-          </View>
+          {/* Conversation switcher dropdown */}
+          <TouchableOpacity style={styles.convSwitcher} onPress={() => setConvDropdown(!convDropdown)}>
+            <Ionicons name="chatbubbles" size={16} color={theme.primary} />
+            <View style={styles.convSwitcherText}>
+              <Text style={styles.headerTitleText} numberOfLines={1}>
+                {activeConvo?.title || "AI Advisor"}
+              </Text>
+              <Text style={styles.headerSub} numberOfLines={1}>
+                {conversations.length > 0 ? `${conversations.length} conversation${conversations.length !== 1 ? "s" : ""}` : "Financial · Insurance · Legacy"}
+              </Text>
+            </View>
+            <Ionicons name={convDropdown ? "chevron-up" : "chevron-down"} size={14} color={theme.muted} />
+          </TouchableOpacity>
+          {/* New chat button */}
+          <TouchableOpacity onPress={newConvo} style={styles.newChatHeaderBtn}>
+            <Ionicons name="add-circle" size={24} color={theme.primary} />
+          </TouchableOpacity>
         </View>
+
+        {/* Conversation dropdown panel */}
+        {convDropdown && (
+          <TouchableOpacity activeOpacity={1} style={styles.convDropdownBackdrop} onPress={() => setConvDropdown(false)}>
+          <View style={styles.convDropdown} onStartShouldSetResponder={() => true}>
+            <TouchableOpacity style={styles.convDropdownNew} onPress={() => { newConvo(); setConvDropdown(false); }}>
+              <Ionicons name="add" size={18} color={theme.primary} />
+              <Text style={styles.convDropdownNewText}>New conversation</Text>
+            </TouchableOpacity>
+            <ScrollView style={styles.convDropdownList} persistentScrollbar>
+              {conversations.length === 0 && (
+                <Text style={styles.convDropdownEmpty}>No conversations yet. Start chatting!</Text>
+              )}
+              {conversations.map((c) => (
+                <TouchableOpacity
+                  key={c.conversation_id}
+                  style={[styles.convDropdownItem, activeId === c.conversation_id && styles.convDropdownItemActive]}
+                  onPress={() => { selectConvo(c.conversation_id); setConvDropdown(false); }}
+                >
+                  <Ionicons name="chatbubble-outline" size={14} color={activeId === c.conversation_id ? theme.primary : theme.muted} />
+                  <Text style={[styles.convDropdownItemText, activeId === c.conversation_id && styles.convDropdownItemTextActive]} numberOfLines={1}>
+                    {c.title}
+                  </Text>
+                  <TouchableOpacity onPress={() => deleteConvo(c.conversation_id)} style={styles.convDropdownDelete}>
+                    <Ionicons name="trash-outline" size={12} color={theme.muted} />
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+          </TouchableOpacity>
+        )}
 
         {/* Messages */}
         {messages.length === 0 ? (
@@ -468,11 +521,25 @@ const styles = StyleSheet.create({
   logoutBtn: { padding: 6 },
   // ── Main ──
   main: { flex: 1 },
-  header: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingTop: 50, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: theme.border },
+  header: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingTop: 50, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: theme.border },
   menuBtn: { padding: 4 },
-  headerTitle: { flex: 1 },
+  convSwitcher: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 12 },
+  convSwitcherText: { flex: 1 },
   headerTitleText: { fontSize: 15, fontWeight: "700", color: theme.text },
   headerSub: { fontSize: 10, color: theme.muted },
+  newChatHeaderBtn: { padding: 4 },
+  // ── Conversation dropdown ──
+  convDropdownBackdrop: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 49 },
+  convDropdown: { position: "absolute", top: 100, left: 12, right: 12, backgroundColor: theme.card, borderRadius: 16, borderWidth: 1, borderColor: theme.border, maxHeight: 400, elevation: 8, shadowColor: "#000", shadowOpacity: 0.3, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, zIndex: 50 },
+  convDropdownNew: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.border },
+  convDropdownNewText: { fontSize: 14, fontWeight: "600", color: theme.primary },
+  convDropdownList: { maxHeight: 340 },
+  convDropdownEmpty: { fontSize: 13, color: theme.muted, paddingHorizontal: 16, paddingVertical: 16, textAlign: "center" },
+  convDropdownItem: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: theme.border },
+  convDropdownItemActive: { backgroundColor: theme.primary + "10" },
+  convDropdownItemText: { flex: 1, fontSize: 14, color: theme.textSecondary },
+  convDropdownItemTextActive: { color: theme.primary, fontWeight: "600" },
+  convDropdownDelete: { padding: 6 },
   // ── Empty state ──
   emptyState: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
   emptyIcon: { width: 64, height: 64, borderRadius: 20, backgroundColor: theme.primary + "15", justifyContent: "center", alignItems: "center", marginBottom: 16 },
