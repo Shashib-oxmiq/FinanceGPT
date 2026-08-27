@@ -482,6 +482,10 @@ export default function ChatScreen({ navigation }) {
       '',
       '[CHART:{"type":"pie","title":"Asset Mix","data":[{"label":"Equity","value":81,"color":"#3b82f6"},{"label":"FD","value":5.3,"color":"#f59e0b"},{"label":"Gold","value":12.8,"color":"#10b981"},{"label":"Crypto","value":0.72,"color":"#ef4444"}]}]',
       '',
+      '[MERMAID:graph TD; A[Income] --> B[80C Investments]; A --> C[80D Health Insurance]; A --> D[Home Loan]; A --> E[Savings]; B --> F[Tax Deduction 1.5L]; C --> G[Health Cover]; D --> H[Interest Deduction]; E --> I[Emergency Fund]]',
+      '',
+      '[MERMAID:flowchart LR; A[Salary] --> B{Old or New Regime?}; B -->|Old| C[80C+80D Deductions]; B -->|New| D[Standard Deduction]; C --> E[Lower Tax]; D --> F[Simpler Filing]; E --> G[Save More]; F --> G]',
+      '',
       'Would you like me to model a rebalancing plan?',
     ].join('\n');
     setMessages((m) => [

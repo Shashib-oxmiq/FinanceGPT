@@ -14,7 +14,7 @@
 //   [TIMELINE:{"events":[{"date":"Jun 15","title":"Advance Tax Q1","desc":"Pay 15%"}]}]
 //   [CALLOUT:{"type":"warning","title":"Deadline approaching","text":"ITR due in 30 days"}]
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, Platform, Linking } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "../theme";
@@ -58,17 +58,29 @@ function findMarkers(text, isStreaming = false) {
       const before = text.slice(pos, bracketPos).trim();
       if (before) blocks.push({ type: "text", content: before });
     }
-    // For MERMAID, the payload ends at the next ] (no nested brackets in mermaid source typically)
+    // For MERMAID, use balanced bracket matching — mermaid syntax uses
+    // [Node Label] inside diagrams, so a simple indexOf(']') would truncate early.
     if (matchedType === "MERMAID") {
-      const endPos = text.indexOf("]", headerEnd);
-      if (endPos === -1) {
-        // No closing bracket — treat as text
-        blocks.push({ type: "text", content: text.slice(bracketPos).trim() });
+      let depth = 1; // we already consumed the opening [
+      let i = headerEnd;
+      while (i < text.length && depth > 0) {
+        const ch = text[i];
+        if (ch === "[") depth++;
+        else if (ch === "]") depth--;
+        i++;
+      }
+      if (depth > 0) {
+        // Incomplete — during streaming show placeholder
+        if (isStreaming) {
+          blocks.push({ type: "streaming_viz", data: { vizType: "mermaid" } });
+        } else {
+          blocks.push({ type: "text", content: text.slice(bracketPos).trim() });
+        }
         break;
       }
-      const payload = text.slice(headerEnd, endPos).trim();
+      const payload = text.slice(headerEnd, i - 1).trim();
       blocks.push({ type: "mermaid", content: payload });
-      pos = endPos + 1;
+      pos = i;
       continue;
     }
     // For JSON markers, find matching ] by tracking bracket depth
@@ -283,9 +295,14 @@ function ChartRenderer({ data }) {
 
 function MermaidDiagram({ content }) {
   // Encode mermaid source as base64 URL-safe for mermaid.ink
+  // Handle Unicode (₹, arrows, etc.) via TextEncoder since btoa breaks on non-ASCII
   const b64 = useMemo(() => {
     try {
-      const b64str = btoa(content);
+      // UTF-8 safe base64 encoding
+      const bytes = new TextEncoder().encode(content);
+      let binary = "";
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+      const b64str = btoa(binary);
       return b64str.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
     } catch (e) {
       return null;
@@ -293,6 +310,8 @@ function MermaidDiagram({ content }) {
   }, [content]);
 
   const url = b64 ? `https://mermaid.ink/img/${b64}?type=png&bgColor=white` : null;
+
+  const [imgState, setImgState] = useState("loading"); // loading | loaded | error
 
   if (!url) return <Text style={vizStyles.errorText}>Mermaid diagram error</Text>;
 
@@ -302,7 +321,24 @@ function MermaidDiagram({ content }) {
         <Ionicons name="git-branch" size={12} color={theme.primary} />
         <Text style={vizStyles.mermaidLabel}>Diagram</Text>
       </View>
-      <Image source={{ uri: url }} style={vizStyles.mermaidImg} resizeMode="contain" />
+      {imgState === "loading" && (
+        <View style={[vizStyles.mermaidImg, { justifyContent: "center", alignItems: "center" }]}>
+          <Text style={vizStyles.errorText}>Rendering diagram...</Text>
+        </View>
+      )}
+      {imgState === "error" && (
+        <View style={[vizStyles.mermaidImg, { justifyContent: "center", alignItems: "center", padding: 12 }]}>
+          <Text style={vizStyles.errorText}>Could not load diagram. Mermaid source:</Text>
+          <Text style={[vizStyles.errorText, { marginTop: 4, fontFamily: "monospace", fontSize: 10 }]}>{content.substring(0, 200)}</Text>
+        </View>
+      )}
+      <Image
+        source={{ uri: url }}
+        style={[vizStyles.mermaidImg, imgState !== "loaded" ? { position: "absolute", opacity: 0 } : {}]}
+        resizeMode="contain"
+        onLoad={() => setImgState("loaded")}
+        onError={() => setImgState("error")}
+      />
     </View>
   );
 }
