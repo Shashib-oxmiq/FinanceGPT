@@ -20,6 +20,10 @@ import { checkEmergencyStatus } from "./emergencyService";
 import { computeHealthScore } from "./healthScore";
 import { getProjectedTax, getUpcomingTaxEvents, getAdvanceTaxStatus, compareRegimes, calculateTax } from "./tax";
 
+// ── Big Purchase Advisor (F-230) ──
+// When user asks "can I afford X?", AI should gather price/EMI/rate and analyze.
+// The actual analysis runs in ChatScreen via [PURCHASE_ADVISOR:json] marker.
+
 const BASE_URL = CONFIG.AI_BASE_URL;
 const BACKEND_URL = CONFIG.BACKEND_URL;
 let apiKey = null;
