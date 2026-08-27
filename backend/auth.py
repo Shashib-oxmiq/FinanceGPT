@@ -29,8 +29,8 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 def set_session_cookie(response: Response, token: str):
     response.set_cookie(
-        key="session_token", value=token, httponly=True, secure=True,
-        samesite="none", max_age=COOKIE_MAX_AGE, path="/",
+        key="session_token", value=token, httponly=True, secure=False,
+        samesite="lax", max_age=COOKIE_MAX_AGE, path="/",
     )
 
 
@@ -192,3 +192,53 @@ async def logout(request: Request, response: Response):
         await db.user_sessions.delete_one({"session_token": token})
     response.delete_cookie("session_token", path="/")
     return {"ok": True}
+
+
+@router.post("/demo")
+async def demo_login(response: Response):
+    """Create or login demo user with pre-seeded financial data."""
+    email = "demo@everkin.app"
+    existing = await db.users.find_one({"email": email})
+
+    if existing:
+        user_id = existing["user_id"]
+    else:
+        user_id = f"user_demo_{uuid.uuid4().hex[:8]}"
+        await db.users.insert_one({
+            "user_id": user_id,
+            "email": email,
+            "name": "Raj Sharma (Demo)",
+            "password_hash": hash_password("demo123"),
+            "picture": None,
+            "auth_provider": "email",
+            "profile": {
+                "personal": {"full_name": "Raj Sharma", "marital_status": "married"},
+                "contact": {"email": email, "city": "Gurugram", "state": "Haryana"},
+                "financial": {"annual_income": 1200000, "occupation": "Software Engineering Manager"},
+            },
+            "created_at": datetime.now(timezone.utc),
+        })
+        # Seed investments
+        for inv in [
+            {"name": "Reliance Industries", "asset_type": "stock", "amount_invested": 150000, "current_value": 185000, "ticker": "RELIANCE.NS"},
+            {"name": "HDFC Mid-Cap Fund", "asset_type": "mutual_fund", "amount_invested": 300000, "current_value": 380000, "ticker": "HDFCMIDCAP"},
+            {"name": "Nifty 50 ETF", "asset_type": "etf", "amount_invested": 200000, "current_value": 245000, "ticker": "NIFTYBEES.NS"},
+            {"name": "SBI Fixed Deposit", "asset_type": "bond", "amount_invested": 500000, "current_value": 530000, "ticker": ""},
+            {"name": "Gold Sovereign Bond", "asset_type": "gold", "amount_invested": 100000, "current_value": 128000, "ticker": "SGB"},
+            {"name": "Bitcoin", "asset_type": "crypto", "amount_invested": 50000, "current_value": 72000, "ticker": "BTC"},
+        ]:
+            await db.investments.insert_one({"user_id": user_id, **inv, "created_at": datetime.now(timezone.utc)})
+
+        # Seed insurance
+        for ins in [
+            {"policy_type": "Term Life", "provider": "LIC", "policy_number": "LIC-TERM-987654", "sum_assured": 10000000, "premium_amount": 18000, "premium_frequency": "annual", "start_date": "2023-06-15", "maturity_date": "2053-06-15", "nominee_name": "Priya Sharma", "notes": "Term plan 30 years"},
+            {"policy_type": "Health Insurance", "provider": "Star Health", "policy_number": "STAR-HEALTH-456789", "sum_assured": 1000000, "premium_amount": 25000, "premium_frequency": "annual", "start_date": "2024-01-10", "maturity_date": "2025-01-10", "nominee_name": "Family Floater", "notes": "₹10L cover"},
+            {"policy_type": "Car Insurance", "provider": "Bajaj Allianz", "policy_number": "BAJAJ-CAR-123456", "sum_assured": 800000, "premium_amount": 12000, "premium_frequency": "annual", "start_date": "2024-03-01", "maturity_date": "2025-03-01", "nominee_name": "Self", "notes": "Hyundai Creta"},
+            {"policy_type": "Home Loan Insurance", "provider": "ICICI Lombard", "policy_number": "ICICI-HOME-789012", "sum_assured": 5000000, "premium_amount": 35000, "premium_frequency": "annual", "start_date": "2022-09-15", "maturity_date": "2032-09-15", "nominee_name": "Priya Sharma", "notes": "Covers home loan"},
+        ]:
+            await db.insurance.insert_one({"user_id": user_id, **ins, "created_at": datetime.now(timezone.utc)})
+
+    token = await create_session(user_id)
+    set_session_cookie(response, token)
+    user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    return {"user": public_user(user), "token": token}

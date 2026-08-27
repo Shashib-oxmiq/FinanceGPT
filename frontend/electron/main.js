@@ -117,11 +117,13 @@ function createWindow() {
   // ── Renderer crash detection and logging ───────────────────────────────
   mainWindow.webContents.on('render-process-gone', (event, details) => {
     console.error(`Renderer process gone! reason=${details.reason}, exitCode=${details.exitCode}`);
+    // Only auto-restart on actual crashes, not on user-initiated close
+    if (isQuitting) return;
     crashCount++;
-    if (crashCount <= MAX_CRASH_RESTARTS && !isQuitting) {
+    if (crashCount <= MAX_CRASH_RESTARTS && details.reason !== 'cleanly') {
       console.log(`Auto-restarting window (attempt ${crashCount}/${MAX_CRASH_RESTARTS})…`);
       setTimeout(() => {
-        if (!isQuitting) createWindow();
+        if (!isQuitting && mainWindow === null) createWindow();
       }, 1000);
     } else if (crashCount > MAX_CRASH_RESTARTS) {
       console.error(`Max crash restarts (${MAX_CRASH_RESTARTS}) exceeded — not restarting`);
@@ -185,15 +187,13 @@ app.on('activate', () => {
   if (mainWindow === null) createWindow();
 });
 
-// When all windows are closed (e.g. renderer crash), re-create on macOS
+// When all windows are closed
 app.on('window-all-closed', () => {
-  if (process.platform === 'darwin' && !isQuitting) {
-    // On macOS, re-create the window instead of quitting
-    setTimeout(() => {
-      if (!isQuitting && mainWindow === null) createWindow();
-    }, 500);
+  if (isQuitting) return;
+  if (process.platform === 'darwin') {
+    // On macOS, quit the app when window is closed (standard behavior for utility apps)
+    app.quit();
   } else {
-    // On Windows/Linux, quit
     app.quit();
   }
 });

@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { api } from "../lib/api";
+import { api, resolveBackendUrl } from "../lib/api";
 
 const AuthContext = createContext(null);
 
@@ -9,6 +9,8 @@ export function AuthProvider({ children }) {
 
   const checkAuth = useCallback(async () => {
     try {
+      // Resolve backend URL first (important in Electron where sidecar picks a random port)
+      await resolveBackendUrl();
       const { data } = await api.get("/auth/me");
       setUser(data);
     } catch {
@@ -32,6 +34,18 @@ export function AuthProvider({ children }) {
     setUser(data.user);
   };
 
+  const loginAsDemo = async () => {
+    // Use the backend demo endpoint which creates user + seeds data
+    try {
+      await resolveBackendUrl();
+      const { data } = await api.post("/auth/demo", {});
+      login(data);
+      return data;
+    } catch (err) {
+      throw err;
+    }
+  };
+
   const logout = async () => {
     try {
       await api.post("/auth/logout");
@@ -41,7 +55,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, setUser, loading, login, logout, checkAuth }}>
+    <AuthContext.Provider value={{ user, setUser, loading, login, loginAsDemo, logout, checkAuth }}>
       {children}
     </AuthContext.Provider>
   );

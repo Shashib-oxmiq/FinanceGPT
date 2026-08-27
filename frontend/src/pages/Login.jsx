@@ -9,7 +9,7 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  const { login } = useAuth();
+  const { login, loginAsDemo } = useAuth();
   const navigate = useNavigate();
 
   const submit = async (e) => {
@@ -76,6 +76,25 @@ export default function Login() {
       <Divider />
       <button onClick={googleLogin} data-testid="google-login" className="w-full flex items-center justify-center gap-2 border border-border py-3 rounded-xl font-medium hover:bg-secondary hover:shadow-sm transition-all">
         <GoogleLogo size={18} weight="bold" /> Continue with Google
+      </button>
+      <button
+        onClick={async () => {
+          setBusy(true);
+          try {
+            await loginAsDemo();
+            toast.success("Welcome to Demo Account");
+            navigate("/chat");
+          } catch (err) {
+            toast.error("Demo login failed: " + (formatApiErrorDetail(err.response?.data?.detail) || err.message));
+          } finally {
+            setBusy(false);
+          }
+        }}
+        disabled={busy}
+        data-testid="demo-login"
+        className="w-full flex items-center justify-center gap-2 border border-primary/40 bg-primary/10 py-3 rounded-xl font-medium hover:bg-primary/20 hover:shadow-sm transition-all disabled:opacity-60"
+      >
+        <ShieldCheck size={18} weight="duotone" className="text-primary" /> Try Demo Account
       </button>
       <p className="text-sm text-muted-foreground text-center mt-6">
         No account? <Link to="/register" className="text-primary hover:underline" data-testid="link-register">Create one</Link>
