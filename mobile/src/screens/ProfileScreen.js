@@ -84,6 +84,15 @@ export default function ProfileScreen({ navigation }) {
         </View>
       </View>
 
+      {/* QA Test Suite */}
+      <TouchableOpacity
+        style={[styles.logoutBtn, { borderColor: theme.primary + "40", marginBottom: 8 }]}
+        onPress={() => navigation.navigate("QATest")}
+      >
+        <Ionicons name="flask" size={18} color={theme.primary} />
+        <Text style={[styles.logoutText, { color: theme.primary }]}>Run QA Test Suite</Text>
+      </TouchableOpacity>
+
       {/* Logout */}
       <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
         <Ionicons name="log-out" size={18} color={theme.destructive} />

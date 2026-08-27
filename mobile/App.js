@@ -53,6 +53,7 @@ import RetirementScreen from "./src/screens/RetirementScreen";
 import TaxScreen from "./src/screens/TaxScreen";
 import PropertyScreen from "./src/screens/PropertyScreen";
 import KinAccessScreen from "./src/screens/KinAccessScreen";
+import QATestScreen from "./src/screens/QATestScreen";
 import SharedViewScreen from "./src/screens/SharedViewScreen";
 
 const Stack = createNativeStackNavigator();
@@ -149,6 +150,7 @@ function AppContent() {
             <Stack.Screen name="Tax" component={TaxScreen} />
             <Stack.Screen name="Property" component={PropertyScreen} />
             <Stack.Screen name="KinAccess" component={KinAccessScreen} />
+            <Stack.Screen name="QATest" component={QATestScreen} />
             <Stack.Screen name="SharedView" component={SharedViewScreen} />
           </>
         )}

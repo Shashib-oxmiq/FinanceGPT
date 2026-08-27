@@ -59,14 +59,14 @@ class WebDB {
 
   async runAsync(sql, params = []) {
     // Determine operation from SQL
-    const tableMatch = sql.match(/(?:INSERT OR REPLACE INTO|UPDATE|DELETE FROM)\s+(\w+)/);
+    const tableMatch = sql.match(/(?:INSERT (?:OR REPLACE )?INTO|UPDATE|DELETE FROM)\s+(\w+)/);
     if (!tableMatch) return { changes: 0 };
     const table = tableMatch[1];
     const t = this._ensureTable(table);
 
-    if (sql.startsWith("INSERT OR REPLACE")) {
-      // Extract column names and values
-      const colMatch = sql.match(/INSERT OR REPLACE INTO \w+ \(([^)]+)\) VALUES \(([^)]+)\)/);
+    if (/^INSERT/i.test(sql)) {
+      // Extract column names and values — handles both INSERT INTO and INSERT OR REPLACE INTO
+      const colMatch = sql.match(/INSERT (?:OR REPLACE )?INTO \w+ \(([^)]+)\) VALUES \(([^)]+)\)/);
       if (colMatch) {
         const cols = colMatch[1].split(", ").map((c) => c.trim());
         const idCol = cols.find((c) => c.endsWith("_id") || c === "user_id") || cols[0];

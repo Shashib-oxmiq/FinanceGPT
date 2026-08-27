@@ -446,6 +446,7 @@ export const dbAll = async (sql, params = []) => {
     const d = await initDB();
     return await d.getAllAsync(sql, params);
   } catch (e) {
+    console.error("dbAll error:", e.message, "sql:", sql);
     return [];
   }
 };

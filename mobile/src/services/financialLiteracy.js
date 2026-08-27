@@ -112,7 +112,7 @@ const LESSONS = {
     ],
     actionPrompt: "Want me to suggest a simple 3-fund portfolio for you?",
   },
-  power_of attorney: {
+  "power_of_attorney": {
     trigger: "no_will",
     title: "Why you need a Will and Nominee",
     level: "intermediate",
