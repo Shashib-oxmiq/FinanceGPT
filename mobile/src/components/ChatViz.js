@@ -350,24 +350,35 @@ function MermaidDiagram({ content }) {
 function DataTable({ data }) {
   const headers = data.headers || [];
   const rows = data.rows || [];
+  
+  // Calculate a consistent column width based on max content length
+  const colWidths = headers.map((h, ci) => {
+    let maxLen = String(h).length;
+    for (const row of rows) {
+      if (row[ci]) maxLen = Math.max(maxLen, String(row[ci]).length);
+    }
+    // ~8px per char, min 90, max 200
+    return Math.min(200, Math.max(90, maxLen * 8 + 20));
+  });
+  
   return (
     <View style={vizStyles.tableCard}>
       {data.title && <Text style={vizStyles.tableTitle}>{data.title}</Text>}
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <View>
+        <View style={{ borderWidth: 1, borderColor: theme.border, borderRadius: 8, overflow: "hidden" }}>
           {/* Header row */}
           <View style={vizStyles.tableHeaderRow}>
             {headers.map((h, i) => (
-              <View key={i} style={[vizStyles.tableCell, vizStyles.tableHeaderCell]}>
+              <View key={i} style={[vizStyles.tableHeaderCell, { width: colWidths[i] }]}>
                 <Text style={vizStyles.tableHeaderText}>{h}</Text>
               </View>
             ))}
           </View>
           {/* Data rows */}
           {rows.map((row, ri) => (
-            <View key={ri} style={[vizStyles.tableDataRow, ri % 2 === 0 && vizStyles.tableRowAlt]}>
+            <View key={ri} style={[vizStyles.tableDataRow, ri % 2 === 1 && vizStyles.tableRowAlt]}>
               {row.map((cell, ci) => (
-                <View key={ci} style={vizStyles.tableCell}>
+                <View key={ci} style={[vizStyles.tableCell, { width: colWidths[ci] }]}>
                   <Text style={vizStyles.tableCellText}>{String(cell)}</Text>
                 </View>
               ))}
@@ -641,15 +652,15 @@ const vizStyles = StyleSheet.create({
   mermaidImg: { width: "100%", height: 200, borderRadius: 8 },
 
   // Table
-  tableCard: { backgroundColor: theme.card, borderRadius: 12, borderWidth: 1, borderColor: theme.border, padding: 8, marginVertical: 6 },
-  tableTitle: { fontSize: 13, fontWeight: "700", color: theme.text, marginBottom: 8 },
-  tableHeaderRow: { flexDirection: "row", borderBottomWidth: 2, borderBottomColor: theme.primary },
-  tableHeaderCell: { backgroundColor: theme.primary + "08" },
-  tableHeaderText: { fontSize: 11, fontWeight: "700", color: theme.primary, textAlign: "center" },
-  tableDataRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: theme.border },
-  tableRowAlt: { backgroundColor: theme.background },
-  tableCell: { paddingHorizontal: 10, paddingVertical: 6, minWidth: 80 },
-  tableCellText: { fontSize: 11, color: theme.text },
+  tableCard: { backgroundColor: theme.card, borderRadius: 12, borderWidth: 1, borderColor: theme.border, padding: 10, marginVertical: 6 },
+  tableTitle: { fontSize: 14, fontWeight: "700", color: theme.text, marginBottom: 10 },
+  tableHeaderRow: { flexDirection: "row", backgroundColor: "#6366f1" },
+  tableHeaderCell: { paddingVertical: 10, paddingHorizontal: 12, borderRightWidth: 1, borderRightColor: "rgba(255,255,255,0.15)" },
+  tableHeaderText: { fontSize: 13, fontWeight: "700", color: "#ffffff", textAlign: "center" },
+  tableDataRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: theme.border, backgroundColor: theme.card },
+  tableRowAlt: { backgroundColor: "#1e1e22" },
+  tableCell: { paddingVertical: 9, paddingHorizontal: 12, borderRightWidth: 1, borderRightColor: theme.border },
+  tableCellText: { fontSize: 13, color: theme.text },
 
   // Stat card
   statCard: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: theme.card, borderRadius: 12, borderWidth: 1, borderColor: theme.border, borderLeftWidth: 3, padding: 10, marginVertical: 4 },
