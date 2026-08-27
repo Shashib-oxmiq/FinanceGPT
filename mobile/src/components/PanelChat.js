@@ -43,6 +43,7 @@ export default function PanelChat({ context, title }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
+  const [streamingId, setStreamingId] = useState(null);
   const [conversationId, setConversationId] = useState(null);
   const flatRef = useRef(null);
   const heightAnim = useRef(new Animated.Value(0)).current;
@@ -98,6 +99,7 @@ export default function PanelChat({ context, title }) {
       // Add assistant placeholder
       const assistantId = Date.now() + "a";
       setMessages((m) => [...m, { role: "assistant", content: "", id: assistantId }]);
+      setStreamingId(assistantId);
 
       // Stream AI response
       const full = await streamChat(system, text, "qwen3.8-27b", (delta) => {
@@ -115,13 +117,14 @@ export default function PanelChat({ context, title }) {
       setMessages((m) => [...m, { role: "assistant", content: `Sorry — I couldn't process that. ${e.message}`, id: aid }]);
     } finally {
       setStreaming(false);
+      setStreamingId(null);
     }
   };
 
   const renderMsg = ({ item }) => (
     <View style={[styles.msg, item.role === "user" ? styles.msgUser : styles.msgAI]}>
       {item.role === "assistant" ? (
-        <ChatVizMessage content={item.content} textStyle={styles.msgAIText} />
+        <ChatVizMessage content={item.content} textStyle={styles.msgAIText} isStreaming={streaming && item.id === streamingId} />
       ) : (
         <Text style={styles.msgUserText}>{item.content}</Text>
       )}

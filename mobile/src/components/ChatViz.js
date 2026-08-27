@@ -25,7 +25,7 @@ import { theme } from "../theme";
 // so we scan for [TYPE: and then find the matching closing ] by tracking bracket depth.
 const MARKER_TYPES = ["CHART", "MERMAID", "TABLE", "STAT", "PROGRESS", "COMPARE", "TIMELINE", "CALLOUT", "WEB_SEARCH", "WEB_RESULT"];
 
-function findMarkers(text) {
+function findMarkers(text, isStreaming = false) {
   const blocks = [];
   let pos = 0;
   while (pos < text.length) {
@@ -88,8 +88,12 @@ function findMarkers(text) {
       i++;
     }
     if (depth > 0) {
-      // Unbalanced — treat as text
-      blocks.push({ type: "text", content: text.slice(bracketPos).trim() });
+      // Incomplete marker — during streaming show a loading placeholder, not raw JSON
+      if (isStreaming) {
+        blocks.push({ type: "streaming_viz", data: { vizType: matchedType.toLowerCase() } });
+      } else {
+        blocks.push({ type: "text", content: text.slice(bracketPos).trim() });
+      }
       break;
     }
     const rawPayload = text.slice(headerEnd, i - 1).trim(); // i-1 excludes the closing ]
@@ -105,9 +109,9 @@ function findMarkers(text) {
 }
 
 // ── Main parser: splits text into segments and viz blocks ──
-export function parseVizBlocks(text) {
+export function parseVizBlocks(text, isStreaming = false) {
   if (!text) return [{ type: "text", content: "" }];
-  return findMarkers(text);
+  return findMarkers(text, isStreaming);
 }
 
 // ── Color palette for charts ──
@@ -496,17 +500,31 @@ export function renderVizBlock(block, key) {
       return <WebSearchResults key={key} data={block.data} />;
     case "web_result":
       return <WebSearchResults key={key} data={block.data} />;
+    case "streaming_viz":
+      return <StreamingVizPlaceholder key={key} data={block.data} />;
     default:
       return <Text key={key} style={vizStyles.messageText}>{JSON.stringify(block)}</Text>;
   }
 }
 
 // ── Convenience: render full message with viz blocks ──
-export function ChatVizMessage({ content, textStyle }) {
-  const blocks = useMemo(() => parseVizBlocks(content), [content]);
+export function ChatVizMessage({ content, textStyle, isStreaming = false }) {
+  const blocks = useMemo(() => parseVizBlocks(content, isStreaming), [content, isStreaming]);
   return (
     <View>
       {blocks.map((block, i) => renderVizBlock(block, `viz_${i}`))}
+    </View>
+  );
+}
+
+// ── Streaming placeholder (shown while AI is generating a viz marker) ──
+function StreamingVizPlaceholder({ data }) {
+  const icons = { chart: "bar-chart", table: "grid", stat: "stats-chart", compare: "swap-horizontal", mermaid: "git-network", progress: "speedometer", timeline: "time", callout: "information-circle", web_search: "globe-outline", web_result: "globe-outline" };
+  const icon = icons[data.vizType] || "sparkles";
+  return (
+    <View style={vizStyles.streamingViz}>
+      <Ionicons name={icon} size={18} color={theme.muted} />
+      <Text style={vizStyles.streamingVizText}>Generating {data.vizType}…</Text>
     </View>
   );
 }
@@ -652,4 +670,8 @@ const vizStyles = StyleSheet.create({
   webResultTitle: { fontSize: 13, fontWeight: "600", color: theme.text, marginBottom: 4 },
   webResultSnippet: { fontSize: 11, color: theme.muted, lineHeight: 16, marginBottom: 4 },
   webResultUrl: { fontSize: 10, color: theme.primary, textDecorationLine: "underline" },
+
+  // Streaming placeholder
+  streamingViz: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, marginVertical: 6, backgroundColor: theme.card, borderRadius: 12, borderWidth: 1, borderColor: theme.border, borderStyle: "dashed" },
+  streamingVizText: { fontSize: 12, color: theme.muted, fontStyle: "italic" },
 });

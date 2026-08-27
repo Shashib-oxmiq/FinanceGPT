@@ -46,6 +46,7 @@ export default function ChatScreen({ navigation }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
+  const [streamingAssistantId, setStreamingAssistantId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
@@ -180,6 +181,7 @@ export default function ChatScreen({ navigation }) {
       // Add assistant placeholder
       const assistantId = Date.now() + "a";
       setMessages((m) => [...m, { role: "assistant", content: "", message_id: assistantId }]);
+      setStreamingAssistantId(assistantId);
       setStreaming(true);
 
       const fullText = await streamChat(system, text, "qwen3.8-27b", (delta) => {
@@ -451,7 +453,41 @@ export default function ChatScreen({ navigation }) {
       ));
     } finally {
       setStreaming(false);
+      setStreamingAssistantId(null);
     }
+  };
+
+  // ── Demo Viz: inject pre-built visualization markers for instant testing ──
+  const showDemoViz = () => {
+    const demoContent = [
+      'Here is your portfolio overview:',
+      '',
+      '[CHART:{"type":"bar","title":"Portfolio Allocation","data":[{"label":"HDFC Mid-Cap","value":3800000,"color":"#3b82f6"},{"label":"Nifty ETF","value":2450000,"color":"#10b981"},{"label":"Reliance","value":1850000,"color":"#6366f1"},{"label":"Gold SGB","value":1280000,"color":"#f59e0b"},{"label":"SBI FD","value":530000,"color":"#94a3b8"},{"label":"Bitcoin","value":72000,"color":"#ef4444"}]}]',
+      '',
+      '[STAT:{"label":"Total Portfolio","value":"Rs. 99.82L","icon":"wallet","color":"#10b981"}]',
+      '',
+      '[STAT:{"label":"Total Invested","value":"Rs. 15.8L","icon":"trending-down","color":"#f59e0b"}]',
+      '',
+      '[STAT:{"label":"Total Gain","value":"Rs. 84L","icon":"trending-up","color":"#10b981"}]',
+      '',
+      '[TABLE:{"title":"Performance Breakdown","headers":["Holding","Invested","Current","Return"],"rows":[["HDFC Mid-Cap","Rs. 2L","Rs. 38L","+1800%"],["Nifty ETF","Rs. 2L","Rs. 24.5L","+1125%"],["Gold SGB","Rs. 1L","Rs. 12.8L","+1180%"],["Reliance","Rs. 5L","Rs. 18.5L","+270%"],["SBI FD","Rs. 5.3L","Rs. 5.3L","0%"],["Bitcoin","Rs. 0.5L","Rs. 0.72L","+44%"]]}]',
+      '',
+      '[COMPARE:{"title":"Equity vs Fixed Income","leftLabel":"Equity","leftValue":"Rs. 81L","rightLabel":"Fixed Income","rightValue":"Rs. 5.3L","better":"left"}]',
+      '',
+      '[PROGRESS:{"label":"Tax Saving Progress","percent":75,"color":"#10b981"}]',
+      '',
+      '[TIMELINE:{"events":[{"date":"Jun 15","title":"Advance Tax Q1","desc":"Pay 15% of estimated tax"},{"date":"Sep 15","title":"Advance Tax Q2","desc":"Pay 45% of estimated tax"},{"date":"Dec 15","title":"Advance Tax Q3","desc":"Pay 75% of estimated tax"},{"date":"Mar 15","title":"Advance Tax Q4","desc":"Pay 100% of estimated tax"}]}]',
+      '',
+      '[CALLOUT:{"type":"warning","title":"Rebalancing Suggestion","text":"Your portfolio is 85% equity. Consider shifting some gains to safer instruments if you are near a goal date."}]',
+      '',
+      '[CHART:{"type":"pie","title":"Asset Mix","data":[{"label":"Equity","value":81,"color":"#3b82f6"},{"label":"FD","value":5.3,"color":"#f59e0b"},{"label":"Gold","value":12.8,"color":"#10b981"},{"label":"Crypto","value":0.72,"color":"#ef4444"}]}]',
+      '',
+      'Would you like me to model a rebalancing plan?',
+    ].join('\n');
+    setMessages((m) => [
+      { role: "user", content: "Show demo visualizations", message_id: Date.now() + "u" },
+      { role: "assistant", content: demoContent, message_id: Date.now() + "a" },
+    ]);
   };
 
   // ── Render message ──
@@ -489,7 +525,7 @@ export default function ChatScreen({ navigation }) {
         )}
         <View style={{ flex: 1 }}>
           {item.role === "assistant" ? (
-            <ChatVizMessage content={item.content} textStyle={styles.msgAssistantText} />
+            <ChatVizMessage content={item.content} textStyle={styles.msgAssistantText} isStreaming={streaming && item.message_id === streamingAssistantId} />
           ) : (
             <Text style={styles.msgUserText}>{item.content}</Text>
           )}
@@ -669,6 +705,10 @@ export default function ChatScreen({ navigation }) {
                   <Text style={styles.exampleText}>{s}</Text>
                 </TouchableOpacity>
               ))}
+              <TouchableOpacity style={[styles.exampleCard, { borderColor: theme.primary, borderWidth: 1, flexDirection: "row", alignItems: "center", gap: 6, justifyContent: "center" }]} onPress={showDemoViz}>
+                <Ionicons name="sparkles" size={14} color={theme.primary} />
+                <Text style={[styles.exampleText, { color: theme.primary, fontWeight: "600" }]}>Demo Visualizations</Text>
+              </TouchableOpacity>
             </View>
           </View>
         ) : (
